@@ -1,0 +1,29 @@
+name: Build Workflow
+
+on:
+    push:
+        branches:
+            - master
+            - dev
+        paths-ignore:
+            - 'README.md'
+            - '.github/ISSUE_TEMPLATE/*'
+
+jobs:
+    trigger-build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Connect Tailscale
+              uses: tailscale/github-action@v3
+              with:
+                  oauth-client-id: ${{secrets.TS_OAUTH_CLIENT_ID}}
+                  oauth-secret: ${{secrets.TS_OAUTH_SECRET}}
+                  tags: tag:chatterui-cd
+
+            - name: Trigger Build
+              run: |
+                  if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
+                    curl -N -sS --max-time 1200 -X GET ${{ secrets.TS_BUILD_API }} || true
+                  elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
+                    curl -N -sS --max-time 1200 -X GET ${{ secrets.TS_BUILD_DEV_API }} || true
+                  fi

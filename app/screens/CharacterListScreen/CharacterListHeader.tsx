@@ -1,0 +1,186 @@
+import { count, eq, notInArray } from 'drizzle-orm'
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite'
+import { useFocusEffect } from 'expo-router'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+import { BackHandler, Text, View } from 'react-native'
+import { useMMKVBoolean } from 'react-native-mmkv'
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated'
+import { useShallow } from 'zustand/react/shallow'
+
+import ThemedButton from '@components/buttons/ThemedButton'
+import StringArrayEditor from '@components/input/StringArrayEditor'
+import ThemedTextInput from '@components/input/ThemedTextInput'
+import { db } from '@db/db'
+import { characterTags, tags } from '@db/schema'
+import { AppSettings } from '@lib/constants/GlobalValues'
+import { CharacterSorter } from '@lib/state/CharacterSorter'
+import { Logger } from '@lib/state/Logger'
+import { TagHider } from '@lib/state/TagHider'
+import { Theme } from '@lib/theme/ThemeManager'
+
+import SortButton from './SortButton'
+
+type CharacterListHeaderProps = {
+    resultLength: number
+}
+
+const CharacterListHeader: React.FC<CharacterListHeaderProps> = ({ resultLength }) => {
+    const { t } = useTranslation()
+    const [useTagHider, setUseTagHider] = useMMKVBoolean(AppSettings.UseTagHider)
+    const { showSearch, setShowSearch, textFilter, setTextFilter, tagFilter, setTagFilter } =
+        CharacterSorter.useSorterStore(
+            useShallow((state) => ({
+                showSearch: state.showSearch,
+                setShowSearch: state.setShowSearch,
+                textFilter: state.textFilter,
+                setTextFilter: state.setTextFilter,
+                tagFilter: state.tagFilter,
+                setTagFilter: state.setTagFilter,
+            }))
+        )
+
+    const { color } = Theme.useTheme()
+    const [showTags, setShowTags] = useMMKVBoolean(AppSettings.ShowTags)
+    const hiddenTags = TagHider.useHiddenTags()
+
+    const { data } = useLiveQuery(
+        db
+            .select({
+                tag: tags.tag,
+                tagCount: count(characterTags.tag_id),
+            })
+            .from(tags)
+            .leftJoin(characterTags, eq(characterTags.tag_id, tags.id))
+            .groupBy(tags.tag)
+            .where(notInArray(tags.tag, hiddenTags)),
+        [hiddenTags]
+    )
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!showSearch) return
+            const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+                setTextFilter('')
+                setShowSearch(false)
+                return true
+            })
+            return () => handler.remove()
+        }, [setShowSearch, setTextFilter, showSearch])
+    )
+
+    if (resultLength === 0 && !showSearch) return
+
+    return (
+        <>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingLeft: 16,
+                    paddingRight: 8,
+                    paddingBottom: 12,
+                }}>
+                <View
+                    style={{
+                        columnGap: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                    }}>
+                    <Text
+                        style={{
+                            color: color.text._400,
+                            fontSize: 16,
+                        }}>
+                        {t('character.list.sort.label')}
+                    </Text>
+                    <SortButton type="modified" label={t('character.list.sort.recent')} />
+                    <SortButton type="name" label={t('character.list.columns.name')} />
+                </View>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        columnGap: 12,
+                    }}>
+                    <ThemedButton
+                        iconName="tag"
+                        variant="tertiary"
+                        onPress={() => {
+                            setShowTags(!showTags)
+                            if (showTags && tagFilter.length > 0) {
+                                setTagFilter([])
+                            }
+                        }}
+                        iconStyle={{
+                            color: showTags ? color.text._100 : color.text._700,
+                        }}
+                    />
+                    <ThemedButton
+                        variant="tertiary"
+                        iconName={showSearch ? 'close' : 'search'}
+                        onPress={() => {
+                            setShowSearch(!showSearch)
+                        }}
+                        iconSize={24}
+                        delayLongPress={5000}
+                        onLongPress={() => {
+                            setUseTagHider(!useTagHider)
+                            Logger.infoToast(
+                                t(
+                                    !useTagHider
+                                        ? 'character.list.messages.hiderEnabled'
+                                        : 'character.list.messages.hiderDisabled'
+                                )
+                            )
+                        }}
+                    />
+                </View>
+            </View>
+
+            <Animated.View layout={LinearTransition}>
+                {showSearch && (
+                    <Animated.View
+                        entering={FadeIn.delay(100)}
+                        exiting={FadeOut}
+                        style={{ paddingHorizontal: 12, paddingBottom: 8, rowGap: 8 }}>
+                        {showTags && data.length > 0 && (
+                            <StringArrayEditor
+                                containerStyle={{ flex: 0 }}
+                                suggestions={data
+                                    .sort((a, b) => b.tagCount - a.tagCount)
+                                    .map((item) => item.tag)}
+                                label={t('character.list.search.byTags')}
+                                value={tagFilter}
+                                setValue={setTagFilter}
+                                placeholder="Filter Tags..."
+                                filterOnly
+                                showSuggestionsOnEmpty
+                            />
+                        )}
+                        <ThemedTextInput
+                            label={t('character.list.search.byName')}
+                            containerStyle={{ flex: 0 }}
+                            value={textFilter}
+                            onChangeText={setTextFilter}
+                            style={{
+                                color: resultLength === 0 ? color.text._700 : color.text._100,
+                            }}
+                            placeholder="Name..."
+                        />
+                        {(textFilter || tagFilter.length > 0) && (
+                            <Text
+                                style={{
+                                    marginTop: 8,
+                                    color: color.text._400,
+                                }}>
+                                {t('common.labels.results')}: {resultLength}
+                            </Text>
+                        )}
+                    </Animated.View>
+                )}
+            </Animated.View>
+        </>
+    )
+}
+
+export default CharacterListHeader

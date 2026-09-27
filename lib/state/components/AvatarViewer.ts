@@ -1,0 +1,14 @@
+import { create } from 'zustand'
+
+type ViewerStateProps = {
+    showViewer: boolean
+    isUser: boolean
+    setShow: (showState: boolean, isUser?: boolean) => void
+}
+
+export const useAvatarViewerStore = create<ViewerStateProps>()((set) => ({
+    showViewer: false,
+    isUser: false,
+    setShow: (showState: boolean, isUser: boolean = false) =>
+        set({ showViewer: showState, isUser: isUser }),
+}))

@@ -1,0 +1,41 @@
+import { getNetworkDate } from '@lib/utils/NetworkTime'
+import { useTextFilterStore } from '@lib/hooks/TextFilter'
+
+export type Macro = {
+    macro: string | RegExp
+    value: string
+}
+
+type ReplaceMacroOptions = {
+    extraMacros?: Macro[]
+}
+
+const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+const getDefaultMacros = () => {
+    const time = getNetworkDate()
+    let rules: Macro[] = [
+        { macro: '{{time}}', value: time.toLocaleTimeString() },
+        { macro: '{{date}}', value: time.toLocaleDateString() },
+        { macro: '{{weekday}}', value: weekday[time.getDay()] },
+    ]
+
+    const filterState = useTextFilterStore.getState()
+    if (!filterState.sendFilteredText) {
+        rules = [
+            ...rules,
+            ...filterState.filter.map((item) => ({ macro: new RegExp(item, 'gi'), value: '' })),
+        ]
+    }
+    return rules
+}
+
+export const replaceMacroBase = (
+    text: string,
+    options: ReplaceMacroOptions = { extraMacros: [] }
+) => {
+    let newtext: string = text
+    const rules = [...getDefaultMacros(), ...(options?.extraMacros ?? [])]
+    for (const rule of rules) newtext = newtext.replaceAll(rule.macro, rule.value)
+    return newtext
+}

@@ -1,0 +1,203 @@
+import { usePathname, useRouter } from 'expo-router'
+import { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+import { View } from 'react-native'
+
+import Alert from '@components/views/Alert'
+import ContextMenu from '@components/views/ContextMenu'
+import { APIManager } from '@lib/engine/API/APIManagerState'
+import { CharInfo, Characters } from '@lib/state/Characters'
+import { Chats } from '@lib/state/Chat'
+import { sendFarewellAndDelete } from '@lib/state/Farewell'
+import { Instructs } from '@lib/state/Instructs'
+import { Logger } from '@lib/state/Logger'
+import { SamplersManager } from '@lib/state/SamplerState'
+
+type CharacterEditPopupProps = {
+    character: CharInfo
+    nowLoading: boolean
+    setNowLoading: (b: boolean) => void
+    children: ReactNode
+}
+
+const CharacterEditPopup: React.FC<CharacterEditPopupProps> = ({
+    character,
+    setNowLoading,
+    nowLoading,
+    children,
+}) => {
+    const { t } = useTranslation()
+    const path = usePathname()
+    const router = useRouter()
+
+    const { setId } = Chats.useChat()
+    const setUser = Characters.useUserStore((state) => state.setCard)
+    const setInstruct = Instructs.useInstruct((state) => state.load)
+    const setConnectionIndex = APIManager.useConnectionsStore((state) => state.setActiveIndex)
+    const setSampler = SamplersManager.useSamplerStore((state) => state.setConfig)
+
+    const setCurrentCharacter = async () => {
+        if (nowLoading || path === '/screens/ChatScreen' || !character.id) return
+        try {
+            setNowLoading(true)
+            await setCurrentCard(character.id)
+            character?.links.forEach((item) => {
+                switch (item.type) {
+                    case 'user_id':
+                        Logger.info(t('character.editor.links.loadUser', { value: item.value }))
+                        setUser(item.value)
+                        break
+                    case 'instruct_id':
+                        Logger.info(t('character.editor.links.loadInstruct', { value: item.value }))
+                        setInstruct(item.value)
+                        break
+                    case 'connection_index':
+                        Logger.info(
+                            t('character.editor.links.loadConnection', { value: item.value })
+                        )
+                        setConnectionIndex(item.value)
+                        break
+                    case 'sampler_index':
+                        Logger.info(t('character.editor.links.loadSampler', { value: item.value }))
+                        setSampler(item.value)
+                        break
+                }
+            })
+            let chatId = character.latestChat
+            if (!chatId) {
+                chatId = await Chats.db.mutate.createChat(character.id)
+            }
+            if (!chatId) {
+                Logger.errorToast(t('character.list.errors.chatCreationFailed'))
+                return
+            }
+            await setId(chatId)
+            setNowLoading(false)
+            router.push('/screens/ChatScreen')
+        } catch (error) {
+            Logger.errorToast(t('character.list.errors.load', { error }))
+            setNowLoading(false)
+        }
+    }
+
+    const setCurrentCard = Characters.useCharacterStore((state) => state.setCard)
+
+    const logoutCard = async (close: () => void) => {
+        close()
+        const card = await Characters.db.query.card(character.id)
+        if (!card) return
+
+        Alert.alert({
+            title: t('character.editor.dialogs.deleteCharacter.farewellTitle', {
+                name: character.name,
+            }),
+            description: '删除后 TA 会亲自给你发最后几句话，然后注销。确定吗？',
+            buttons: [
+                {
+                    label: t('character.editor.dialogs.deleteCharacter.keep'),
+                },
+                {
+                    label: t('character.editor.dialogs.deleteCharacter.confirm'),
+                    onPress: async () => {
+                        setNowLoading(true)
+                        await sendFarewellAndDelete(character.id ?? -1)
+                        setNowLoading(false)
+                        Logger.info(
+                            t('character.editor.messages.deleted', { name: character.name })
+                        )
+                    },
+                    type: 'warning',
+                },
+            ],
+        })
+    }
+
+    const purgeCard = (close: () => void) => {
+        close()
+        Alert.alert({
+            title: t('character.editor.dialogs.deleteCharacter.purgeTitle'),
+            description: t('character.editor.dialogs.deleteCharacter.purgeDescription', {
+                name: character.name,
+            }),
+            buttons: [
+                { label: t('common.actions.cancel') },
+                {
+                    label: t('character.editor.dialogs.deleteCharacter.purgeConfirm'),
+                    onPress: async () => {
+                        setNowLoading(true)
+                        await Characters.db.mutate.purgeCard(character.id ?? -1)
+                        setNowLoading(false)
+                    },
+                    type: 'warning',
+                },
+            ],
+        })
+    }
+
+    const cloneCard = (close: () => void) => {
+        close()
+        Alert.alert({
+            title: t('character.editor.dialogs.clone.title'),
+            description: t('character.editor.dialogs.clone.description', { name: character.name }),
+            buttons: [
+                {
+                    label: t('common.actions.cancel'),
+                },
+                {
+                    label: t('character.editor.dialogs.clone.confirm'),
+                    onPress: async () => {
+                        setNowLoading(true)
+                        const cloned = await Characters.db.mutate.duplicateCard(character.id)
+
+                        setNowLoading(false)
+                        if (cloned) {
+                            Logger.infoToast(t('character.editor.messages.cloned'))
+                        }
+                    },
+                },
+            ],
+        })
+    }
+
+    const editCharacter = async (close: () => void) => {
+        if (nowLoading) return
+        setNowLoading(true)
+        await setCurrentCard(character.id)
+        setNowLoading(false)
+        close()
+        router.push('/screens/CharacterEditorScreen')
+    }
+
+    return (
+        <ContextMenu
+            disabled={nowLoading || path !== '/'}
+            onPress={setCurrentCharacter}
+            longPress
+            delayLongPress={300}
+            buttons={[
+                {
+                    label: t('common.actions.edit'),
+                    icon: 'edit',
+                    onPress: editCharacter,
+                    disabled: !!character.deletedAt,
+                },
+                {
+                    label: t('common.actions.clone'),
+                    icon: 'copy',
+                    onPress: cloneCard,
+                    disabled: !!character.deletedAt,
+                },
+                {
+                    label: t('common.actions.delete'),
+                    icon: 'delete',
+                    onPress: character.deletedAt ? purgeCard : logoutCard,
+                    variant: 'warning',
+                },
+            ]}
+            placement="center">
+            <View pointerEvents="none">{children}</View>
+        </ContextMenu>
+    )
+}
+
+export default CharacterEditPopup

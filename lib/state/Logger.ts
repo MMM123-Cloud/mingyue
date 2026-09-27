@@ -1,0 +1,165 @@
+import Toast from 'react-native-simple-toast'
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+import { Storage } from '@lib/enums/Storage'
+
+import { AppSettings } from '../constants/GlobalValues'
+import { createMMKVStorage, mmkv } from '../storage/MMKV'
+
+const toastTime = Toast.SHORT
+const maxloglength = 2000
+
+export enum LogLevel {
+    INFO,
+    WARN,
+    ERROR,
+    DEBUG,
+}
+
+type LogEntry = {
+    timestamp: string
+    message: string
+    level: LogLevel
+}
+
+type LogStateProps = {
+    logs: LogEntry[]
+    addLog: (entry: LogEntry) => void
+    flushLogs: () => void
+}
+
+export namespace Logger {
+    export const useLoggerStore = create<LogStateProps>()(
+        persist(
+            (set, get) => ({
+                logs: [],
+                addLog: (entry) => {
+                    const newlogs = [...get().logs, entry]
+                    if (newlogs.length > maxloglength) newlogs.shift()
+                    set({ logs: newlogs })
+                },
+                flushLogs: () => {
+                    set({ logs: [] })
+                },
+            }),
+            {
+                name: Storage.Logs,
+                storage: createMMKVStorage(),
+                version: 1,
+                partialize: (state) => ({
+                    logs: state.logs,
+                }),
+                migrate: async (persistedState: any, version) => {
+                    //no migrations yet
+                },
+            }
+        )
+    )
+
+    export const LevelName: Record<LogLevel, string> = {
+        [LogLevel.INFO]: '[INFO]',
+        [LogLevel.WARN]: '[WARN]',
+        [LogLevel.ERROR]: '[ERROR]',
+        [LogLevel.DEBUG]: '[DEBUG]',
+    }
+
+    const insertLogs = (data: LogEntry) => {
+        useLoggerStore.getState().addLog(data)
+    }
+
+    const createLog = (data: unknown, level: LogLevel): LogEntry => {
+        const timestamp = `[${new Date().toTimeString().substring(0, 8)}]`
+        const message = parseLog(data)
+        return { timestamp: timestamp, message: message, level: level }
+    }
+
+    const printLog = (log: LogEntry) => {
+        console.log(`${LevelName[log.level]}${log.timestamp}: ${log.message}`)
+    }
+
+    const parseLog = (data: unknown) => {
+        return typeof data === 'string'
+            ? data
+            : data instanceof Error
+              ? data.message
+              : 'INVALID LOG'
+    }
+
+    export const info = (data: string) => {
+        const logItem = createLog(data, LogLevel.INFO)
+        printLog(logItem)
+        insertLogs(logItem)
+    }
+
+    export const infoToast = (data: string, internal?: string) => {
+        info(data)
+        if (internal) {
+            info(internal)
+        }
+        Toast.show(data, toastTime)
+    }
+
+    export const warn = (data: unknown) => {
+        const logItem = createLog(data, LogLevel.WARN)
+        printLog(logItem)
+        insertLogs(logItem)
+    }
+
+    export const warnToast = (data: string, internal?: string) => {
+        warn(data)
+        if (internal) {
+            warn(internal)
+        }
+        Toast.show(data, toastTime, { textColor: 'yellow' })
+    }
+
+    export const error = (data: unknown) => {
+        const logItem = createLog(data, LogLevel.ERROR)
+        printLog(logItem)
+        insertLogs(logItem)
+    }
+
+    export const errorToast = (data: string, internal?: unknown) => {
+        error(data)
+        if (internal) {
+            if (typeof internal === 'string') error(internal)
+            else if (internal instanceof Error) error(internal.message)
+        }
+        Toast.show(data, toastTime, { textColor: 'red' })
+    }
+
+    export const debug = (data: string) => {
+        if (!__DEV__ && !mmkv.getBoolean(AppSettings.DevMode)) return
+        const logItem = createLog(data, LogLevel.DEBUG)
+        printLog(logItem)
+        insertLogs(logItem)
+    }
+
+    export const debugToast = (data: string, internal?: string) => {
+        error(data)
+        if (internal) {
+            error(internal)
+        }
+        Toast.show(data, toastTime, {
+            textColor: 'blue',
+        })
+    }
+
+    export const errorFn = (e: unknown) => {
+        if (e instanceof Error) {
+            const firstLine = e.stack
+                ?.split('\n')?.[1]
+                ?.trim()
+                ?.replace(/\s*\(.*\)/, '')
+            if (firstLine) {
+                error('Error occured:' + firstLine)
+            }
+        }
+    }
+    export const stackTrace = (e: unknown) => {
+        if (e instanceof Error && e.stack) {
+            error(e.stack)
+        }
+    }
+}

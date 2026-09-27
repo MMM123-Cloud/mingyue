@@ -1,0 +1,385 @@
+import { getCpuFeatures, getThreads } from '@vali98/react-native-cpu-info'
+import { setTextIntentEnabled, useTextIntentOnForeground } from '@vali98/react-native-process-text'
+import { DeviceType, getDeviceTypeAsync } from 'expo-device'
+import { Paths } from 'expo-file-system'
+import * as KeepAwake from 'expo-keep-awake'
+import { router } from 'expo-router'
+import { setBackgroundColorAsync as setUIBackgroundColor } from 'expo-system-ui'
+import { z } from 'zod'
+
+import { migrateData } from '@db/dataMigrations'
+import { Model } from '@lib/engine/Local/Model'
+import { Tokenizer } from '@lib/engine/Tokenizer'
+import { setupNotifications } from '@lib/notifications/Notifications'
+import { useAppModeStore } from '@lib/state/AppMode'
+import { useChatInputTextStore } from '@lib/state/components/ChatInput'
+import { Instructs } from '@lib/state/Instructs'
+import { SamplersManager } from '@lib/state/SamplerState'
+import { useTTSStore } from '@lib/state/TTS'
+
+import { SamplerID } from '../constants/SamplerData'
+
+import { AppDirectory, deleteFile, listFiles, makeDirectory, readStringAsync } from './File'
+import { lockScreenOrientation } from './Screen'
+import { AppSettings, AppSettingsDefault, Global } from '../constants/GlobalValues'
+import { Llama } from '../engine/Local/LlamaLocal'
+import { Characters } from '../state/Characters'
+import { Chats } from '../state/Chat'
+import { Logger } from '../state/Logger'
+import { mmkv } from '../storage/MMKV'
+import { Theme } from '../theme/ThemeManager'
+import { startNetworkTimeSync, syncNetworkTime } from './NetworkTime'
+import { useWalletStore } from '../state/Wallet'
+
+const loadNewestChat = async () => {
+    Logger.info('Loading latest chat')
+    const newestChat = await Chats.db.query.chatNewest()
+    if (!newestChat) return
+    await Characters.useCharacterStore.getState().setCard(newestChat.character_id)
+    await Chats.useChatState.getState().setId(newestChat.id)
+}
+
+export const loadChatOnInit = async () => {
+    if (!mmkv.getBoolean(AppSettings.ChatOnStartup)) return
+    await loadNewestChat()
+    router.push('/screens/ChatScreen')
+}
+
+export const useTextIntentFocus = () => {
+    return useTextIntentOnForeground(async (text) => {
+        if (!text) return
+        useChatInputTextStore.getState().setText(text)
+        if (router.canDismiss()) router.dismissAll()
+        router.push('/screens/ChatScreen')
+        await loadNewestChat()
+    }, [])
+}
+
+const setAppDefaultSettings = () => {
+    Object.keys(AppSettingsDefault).map((item) => {
+        const data = mmkv.getBoolean(item)
+        if (data !== undefined) return
+        if (item === AppSettings.UnlockOrientation) {
+            getDeviceTypeAsync().then((result) => {
+                mmkv.set(item, result === DeviceType.TABLET)
+            })
+        } else mmkv.set(item, AppSettingsDefault[item as AppSettings])
+    })
+}
+
+const applyPerformanceProfileV1 = () => {
+    if (mmkv.getBoolean(Global.PerformanceProfileV1)) return
+    mmkv.set(AppSettings.ShowReasoning, false)
+    mmkv.set(Global.PerformanceProfileV1, true)
+    Logger.info('Applied fast chat profile: reasoning generation disabled by default')
+}
+
+const applyPerformanceProfileV2 = () => {
+    if (mmkv.getBoolean(Global.PerformanceProfileV2)) return
+    mmkv.set(AppSettings.ShowReasoning, false)
+    mmkv.set(Global.PerformanceProfileV2, true)
+    Logger.info('Applied fast chat profile v2: thinking mode disabled')
+}
+
+const applyPerformanceProfileV3 = () => {
+    if (mmkv.getBoolean(Global.PerformanceProfileV3)) return
+
+    const llamaStore = Llama.useLlamaPreferencesStore.getState()
+    llamaStore.setConfiguration({
+        ...llamaStore.config,
+        context_length: Math.min(llamaStore.config.context_length ?? 2048, 2048),
+        threads: Math.min(llamaStore.config.threads ?? 4, 4),
+        batch: Math.min(llamaStore.config.batch ?? 128, 128),
+        gpu_layers: 0,
+        devices: [],
+    })
+
+    const samplerStore = SamplersManager.useSamplerStore
+    const samplerState = samplerStore.getState()
+    samplerStore.setState({
+        configList: samplerState.configList.map((item) => ({
+            ...item,
+            data: {
+                ...item.data,
+                [SamplerID.GENERATED_LENGTH]: Math.min(
+                    item.data[SamplerID.GENERATED_LENGTH] ?? 128,
+                    128
+                ),
+            },
+        })),
+    })
+
+    mmkv.set(AppSettings.ShowReasoning, false)
+    mmkv.set(Global.PerformanceProfileV3, true)
+    Logger.info('Applied fast chat profile v3: compact context and shorter replies')
+}
+
+const applyPerformanceProfileV4 = () => {
+    if (mmkv.getBoolean(Global.PerformanceProfileV4)) return
+
+    const samplerStore = SamplersManager.useSamplerStore
+    const samplerState = samplerStore.getState()
+    samplerStore.setState({
+        configList: samplerState.configList.map((item) => ({
+            ...item,
+            data: {
+                ...item.data,
+                [SamplerID.GENERATED_LENGTH]: Math.max(
+                    item.data[SamplerID.GENERATED_LENGTH] ?? 256,
+                    256
+                ),
+            },
+        })),
+    })
+
+    mmkv.set(Global.PerformanceProfileV4, true)
+    Logger.info('Applied reply profile v4: longer replies so scenes can be described in full')
+}
+
+const applyPerformanceProfileV5 = () => {
+    if (mmkv.getBoolean(Global.PerformanceProfileV5)) return
+
+    const llamaStore = Llama.useLlamaPreferencesStore.getState()
+    llamaStore.setConfiguration({
+        ...llamaStore.config,
+        gpu_layers: 99,
+        devices: ['GPUOpenCL'],
+    })
+
+    mmkv.set(Global.PerformanceProfileV5, true)
+    Logger.info('Applied GPU profile v5: Adreno OpenCL offload with automatic CPU fallback')
+}
+
+const createDefaultCard = async () => {
+    if (!mmkv.getBoolean(AppSettings.CreateDefaultCard)) return
+    const result = await Characters.db.query.cardList('character')
+    if (result.length === 0) await Characters.createDefaultCard()
+    mmkv.set(AppSettings.CreateDefaultCard, false)
+}
+
+const setCPUFeatures = async () => {
+    const result = await getCpuFeatures()
+    mmkv.set(Global.CpuFeatures, JSON.stringify(result))
+}
+
+const migrateModelData_0_7_10_to_0_8_0 = () => {
+    // Fix for 0.7.10 -> 0.8.0 LocalModel data
+    // Attempt to parse model, if this fails, delete the key
+    const oldDef = `localmodel`
+    try {
+        const model = mmkv.getString(oldDef)
+        if (model) JSON.parse(model)
+    } catch (e) {
+        Logger.error('migrateModelData_0_7_10_to_0_8_0 Failed')
+        Logger.error(`${e}`)
+        mmkv.remove(oldDef)
+    }
+}
+
+const migrateModelData_0_8_4_to_0_8_5 = () => {
+    // `localmodel` is the definition of Global.LocalModel
+    const oldDef = `localmodel`
+    try {
+        const modelData = mmkv.getString(oldDef)
+        if (!modelData) return
+        const data = JSON.parse(modelData)
+        if (!data) return
+        mmkv.remove(oldDef)
+        Llama.useLlamaPreferencesStore.getState().setLastModelLoaded(data)
+    } catch (e) {
+        Logger.error('migrateModelData_0_8_4_to_0_8_5 Failed')
+        Logger.error(`${e}`)
+    }
+}
+
+const migrateTTSData_0_8_5_to_0_8_6 = () => {
+    /** previous Global enum data:
+        TTSSpeaker = 'ttsspeaker',
+        TTSEnable = 'ttsenable',
+        TTSAuto = `ttsauto`, 
+    */
+    if (mmkv.getBoolean('ttsauto')) {
+        mmkv.remove('ttsauto')
+        useTTSStore.getState().setAuto(true)
+    }
+    if (mmkv.getBoolean('ttsenable')) {
+        mmkv.remove('ttsenable')
+        useTTSStore.getState().setEnabled(true)
+    }
+    const speakerData = mmkv.getString('ttsspeaker')
+    if (speakerData) {
+        mmkv.remove('ttsspeaker')
+        try {
+            const voiceData = JSON.parse(speakerData)
+            const voiceSchema = z.object({
+                identifier: z.string(),
+                name: z.string(),
+                quality: z.enum(['Default', 'Enhanced']),
+                language: z.string(),
+            })
+            const result = voiceSchema.safeParse(voiceData)
+            if (result.success) {
+                useTTSStore.getState().setVoice(voiceData)
+            } else throw new Error('Schema validation failed')
+        } catch (e) {
+            Logger.error('migrateTTSData_0_8_5_to_0_8_6 Failed')
+            Logger.error(`${e}`)
+        }
+    }
+}
+
+export const generateDefaultDirectories = async () => {
+    // Removed: 'instruct', 'persona', 'presets', 'lorebooks'
+    Object.values(AppDirectory).map((dir) => {
+        makeDirectory(dir)
+    })
+}
+
+const migratePresets_0_8_3_to_0_8_4 = async () => {
+    const presetPath = `${Paths.document.uri}presets`
+    const files = listFiles(presetPath)
+
+    if (files.length === 0) return
+    files.map(async (item) => {
+        try {
+            const data = await readStringAsync(`${presetPath}/${item}`)
+            SamplersManager.useSamplerStore.getState().addSamplerConfig({
+                data: JSON.parse(data),
+                name: item.replace('.json', ''),
+            })
+        } catch (e) {
+            Logger.error(`Failed to migrate preset ${item}: ${e}`)
+        }
+    })
+    deleteFile(presetPath)
+}
+
+const migrateAppMode_0_8_5_to_0_8_6 = () => {
+    // Old Global Value AppMode = 'appmode',
+    const oldKey = 'appmode'
+    const oldAppMode = mmkv.getString(oldKey)
+    if (!oldAppMode) return
+
+    if (oldAppMode === 'local' || oldAppMode === 'remote') {
+        useAppModeStore.getState().setAppMode(oldAppMode)
+    }
+    mmkv.remove(oldKey)
+    Logger.warn('Migrated appmode from 0.8.5 to 0.8.6')
+}
+
+const migrateTextIntent_0_8_8_to_0_8_9 = () => {
+    if (!mmkv.getBoolean(Global.InstallTextIntentDisable)) {
+        mmkv.set(Global.InstallTextIntentDisable, true)
+        setTextIntentEnabled(false)
+    }
+}
+
+const createDefaultUserData = async () => {
+    const id = await Characters.db.mutate.createCard('User', 'user')
+    Characters.useUserStore.getState().setCard(id)
+}
+
+const setDefaultUser = async () => {
+    const userList = await Characters.db.query.cardList('user')
+    if (!userList) {
+        Logger.error(
+            'User database is Invalid, this should not happen! Please report this occurence.'
+        )
+    } else if (userList?.length === 0) {
+        Logger.warn('No Users exist, creating default Users')
+        await createDefaultUserData()
+    } else if (userList.length > 0 && !Characters.useUserStore.getState().card) {
+        Characters.useUserStore.getState().setCard(userList[0].id)
+    }
+}
+
+const setKeepAwake = async () => {
+    const keepAwake = mmkv.getBoolean(AppSettings.KeepAwake)
+    if (keepAwake) KeepAwake.activateKeepAwakeAsync()
+    else KeepAwake.deactivateKeepAwake()
+}
+
+const setDefaultInstruct = () => {
+    Instructs.db.query.instructList().then(async (list) => {
+        if (!list) {
+            Logger.error('Instruct database Invalid, this should not happen! Please report this!')
+        } else if (list?.length === 0) {
+            Logger.warn('No Instructs exist, creating default Instruct')
+            const id = await Instructs.generateInitialDefaults()
+            Instructs.useInstruct.getState().load(id)
+        }
+    })
+}
+
+const setCPUThreads = () => {
+    const threads = mmkv.getNumber(Global.CPUThreads)
+    if (threads) return
+    let newThreads = 8
+    try {
+        newThreads = getThreads()
+    } catch (e) {
+        Logger.error('Failed to set CPU Threads: ' + e)
+    }
+    Logger.info('Setting CPU Threads to ' + newThreads)
+    mmkv.set(Global.CPUThreads, newThreads)
+}
+
+export const startupApp = () => {
+    console.log('[APP STARTED]: T1APT')
+    startNetworkTimeSync()
+    void syncNetworkTime().then(() => useWalletStore.getState().ensureMonthlyAllowance())
+    // DEV: Needed for Reset
+    //Chats.useChatState.getState().reset()
+    //Characters.useCharacterCard.getState().unloadCard()
+
+    // Sets default preferences
+    setAppDefaultSettings()
+    applyPerformanceProfileV1()
+    applyPerformanceProfileV2()
+    applyPerformanceProfileV3()
+    applyPerformanceProfileV4()
+    applyPerformanceProfileV5()
+    generateDefaultDirectories()
+    setDefaultUser()
+    setDefaultInstruct()
+
+    // setup notifications
+    setupNotifications()
+
+    // Initialize the default card
+    createDefaultCard()
+
+    // get fp16, i8mm and dotprod data
+    setCPUFeatures()
+
+    // set cpu thread count
+    setCPUThreads()
+
+    // patch Android text for bold Accessibility, still an issue here:
+    // https://github.com/Vali-98/ChatterUI/issues/511
+    // patchAndroidText()
+
+    // set keep awake settings
+    setKeepAwake()
+
+    // Local Model Data in case external models are deleted
+    Model.verifyModelList()
+    Tokenizer.useTokenizerState.getState().loadModel()
+
+    // Fix any missing samplers
+    SamplersManager.useSamplerStore.getState().fixConfigs()
+
+    // migrations for old versions
+    migrateModelData_0_7_10_to_0_8_0()
+    migrateModelData_0_8_4_to_0_8_5()
+    migratePresets_0_8_3_to_0_8_4()
+    migrateTTSData_0_8_5_to_0_8_6()
+    migrateAppMode_0_8_5_to_0_8_6()
+    migrateTextIntent_0_8_8_to_0_8_9()
+    lockScreenOrientation()
+    migrateData()
+    const backgroundColor = Theme.useColorState.getState().color.neutral._100
+    setUIBackgroundColor(backgroundColor)
+
+    Logger.info('Resetting state values for startup.')
+}

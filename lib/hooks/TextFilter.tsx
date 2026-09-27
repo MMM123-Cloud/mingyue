@@ -1,0 +1,53 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+import { Storage } from '@lib/enums/Storage'
+import { Logger } from '@lib/state/Logger'
+import { createMMKVStorage } from '@lib/storage/MMKV'
+
+type TextFilterStateProps = {
+    filter: string[]
+    sendFilteredText: boolean
+    setFilter: (arr: string[]) => void
+    setSendFilteredText: (b: boolean) => void
+}
+
+export const useTextFilterStore = create<TextFilterStateProps>()(
+    persist(
+        (set) => ({
+            filter: [],
+            sendFilteredText: true,
+            setFilter: (arr) => set({ filter: arr }),
+            setSendFilteredText: (b) => {
+                set({ sendFilteredText: b })
+            },
+        }),
+        {
+            name: Storage.TextFilter,
+            version: 1,
+            storage: createMMKVStorage(),
+        }
+    )
+)
+
+type RegexResult = {
+    result: string
+    found: boolean
+}
+
+export const useTextFilter = (inputString: string): RegexResult => {
+    const filters = useTextFilterStore((state) => state.filter)
+    if (filters.length === 0) return { result: inputString, found: false }
+    let newString = inputString
+    try {
+        filters.forEach((item) => {
+            const regex = new RegExp(item, 'gi')
+            newString = newString.replace(regex, '')
+        })
+    } catch (e) {
+        Logger.warn('Regex parsing failed')
+        Logger.warn(e)
+    } finally {
+        return { result: newString, found: newString.length !== inputString.length }
+    }
+}

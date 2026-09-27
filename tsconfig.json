@@ -1,0 +1,27 @@
+{
+    "extends": "expo/tsconfig.base",
+    "compilerOptions": {
+        "strict": true,
+        "paths": {
+            "@components/*": ["./app/components/*"],
+            "@screens/*": ["./app/screens/*"],
+            "@lib/*": ["./lib/*"],
+            "@assets/*": ["./assets/*"],
+            "@public/*": ["./public/*"],
+            "@db/*": ["./db/*"],
+            "@appconfig": ["./app.config.js"],
+            "@i18n/*": ["./i18n/*"]
+        },
+        "allowJs": true,
+        "types": ["node", "jest"]
+    },
+    "include": [
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx",
+        ".expo/types/**/*.ts",
+        "expo-env.d.ts",
+        "app/_layout.tsx"
+    ]
+}

@@ -1,0 +1,216 @@
+import Octicons from '@react-native-vector-icons/octicons/static'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native'
+
+import BottomSheet, { useBottomSheetRef } from '@components/views/BottomSheet'
+import { Theme } from '@lib/theme/ThemeManager'
+
+type DropdownItemProps = {
+    label: string
+    active: boolean
+    onValueChange: (b: boolean) => void
+}
+
+const DropdownItem: React.FC<DropdownItemProps> = ({ label, active, onValueChange }) => {
+    const styles = useDropdownStyles()
+    return (
+        <Pressable
+            style={active ? styles.listItemSelected : styles.listItem}
+            onPress={() => {
+                onValueChange(!active)
+            }}>
+            <Text style={styles.listItemText}>{label}</Text>
+        </Pressable>
+    )
+}
+
+type DropdownSheetProps<T> = {
+    containerStyle?: ViewStyle
+    style?: ViewStyle
+    data: T[]
+    selected: T[]
+    onChangeValue: (data: T[]) => void
+    labelExtractor: (data: T) => string
+    search?: boolean
+    placeholder?: string
+    modalTitle?: string
+    closeOnSelect?: boolean
+}
+
+const MultiDropdownSheet = <T,>({
+    containerStyle = undefined,
+    onChangeValue,
+    style,
+    selected,
+    data = [],
+    placeholder,
+    modalTitle,
+    labelExtractor = (data) => {
+        return data as string
+    },
+    search = false,
+    closeOnSelect = true,
+}: DropdownSheetProps<T>) => {
+    const { t } = useTranslation()
+    const styles = useDropdownStyles()
+    const { color, spacing } = Theme.useTheme()
+    const sheetRef = useBottomSheetRef()
+    const [searchFilter, setSearchFilter] = useState('')
+
+    const finalPlaceholder = placeholder ?? t('dropdown.selectItem')
+    const finalModalTitle = modalTitle ?? t('dropdown.selectItem')
+
+    const items = data.filter((item) =>
+        labelExtractor(item)
+            ?.toLowerCase()
+            .includes(searchFilter.toLowerCase() ?? true)
+    )
+    return (
+        <View style={containerStyle}>
+            <BottomSheet
+                ref={sheetRef}
+                onClose={() => {
+                    setSearchFilter('')
+                }}>
+                <View
+                    style={{
+                        marginBottom: spacing.xl2,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                    }}>
+                    <Text style={styles.modalTitle}>{finalModalTitle}</Text>
+                    <Text style={styles.counterText}>
+                        {selected.length > 0
+                            ? t('multiDropdown.counter', { count: selected.length })
+                            : t('multiDropdown.noItemsSelected')}
+                    </Text>
+                </View>
+                {items.length > 0 ? (
+                    <FlatList
+                        contentContainerStyle={{ rowGap: 2 }}
+                        showsVerticalScrollIndicator={false}
+                        data={items}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={({ item, index }) => (
+                            <DropdownItem
+                                label={labelExtractor(item)}
+                                active={selected?.some(
+                                    (e) => labelExtractor(e) === labelExtractor(item)
+                                )}
+                                onValueChange={(active) => {
+                                    if (!active && selected.length > 0) {
+                                        const data = selected.filter(
+                                            (e) => labelExtractor(e) !== labelExtractor(item)
+                                        )
+                                        onChangeValue(data)
+                                    } else {
+                                        // we duplicate for a fresh reference
+                                        const data = [...selected]
+                                        if (
+                                            selected.some(
+                                                (e) => labelExtractor(e) === labelExtractor(item)
+                                            )
+                                        )
+                                            return
+                                        data.push(item)
+                                        onChangeValue(data)
+                                    }
+                                }}
+                            />
+                        )}
+                    />
+                ) : (
+                    <Text style={styles.emptyText}>{t('common.emptyStates.noItems')}</Text>
+                )}
+                {search && (
+                    <TextInput
+                        placeholder={t('dropdown.filter')}
+                        placeholderTextColor={color.text._300}
+                        style={styles.searchBar}
+                        value={searchFilter}
+                        onChangeText={setSearchFilter}
+                    />
+                )}
+            </BottomSheet>
+            <Pressable style={[style, styles.button]} onPress={() => sheetRef.current?.open()}>
+                {selected && selected.length > 0 && (
+                    <Text style={styles.buttonText}>
+                        {selected.length} {t('common.labels.selected')}
+                    </Text>
+                )}
+                {(!selected || selected.length === 0) && (
+                    <Text style={styles.placeholderText}>{finalPlaceholder}</Text>
+                )}
+                <Octicons name="chevron-down" color={color.primary._800} size={18} />
+            </Pressable>
+        </View>
+    )
+}
+
+export default MultiDropdownSheet
+
+export const useDropdownStyles = () => {
+    const { color, spacing, borderRadius } = Theme.useTheme()
+    return StyleSheet.create({
+        button: {
+            paddingHorizontal: spacing.xl,
+            paddingVertical: spacing.m,
+            alignItems: 'center',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            borderRadius: borderRadius.m,
+            backgroundColor: color.primary._300,
+        },
+        buttonText: {
+            color: color.text._100,
+        },
+        placeholderText: {
+            color: color.text._300,
+        },
+
+        modalTitle: {
+            color: color.text._300,
+            fontSize: 20,
+            fontWeight: '500',
+            paddingBottom: spacing.xl2,
+        },
+
+        listItem: {
+            paddingVertical: spacing.xl,
+            paddingHorizontal: spacing.xl2,
+        },
+
+        listItemSelected: {
+            paddingVertical: spacing.xl,
+            paddingHorizontal: spacing.xl2,
+            backgroundColor: color.primary._200,
+            borderRadius: borderRadius.xl,
+        },
+
+        emptyText: {
+            color: color.text._400,
+            padding: spacing.xl,
+        },
+
+        listItemText: {
+            color: color.text._200,
+            fontSize: 16,
+        },
+
+        searchBar: {
+            marginTop: spacing.l,
+            borderRadius: borderRadius.m,
+            padding: spacing.l,
+            backgroundColor: color.neutral._200,
+            color: color.text._100,
+            textAlignVertical: 'center',
+        },
+
+        counterText: {
+            color: color.text._800,
+            fontSize: 14,
+            paddingBottom: spacing.xl2,
+        },
+    })
+}

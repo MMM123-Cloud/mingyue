@@ -1,0 +1,74 @@
+import { FlashList } from '@shopify/flash-list'
+import { useLiveQuery } from 'drizzle-orm/expo-sqlite'
+import { useTranslation } from 'react-i18next'
+import { Text, View } from 'react-native'
+import { useShallow } from 'zustand/react/shallow'
+
+import ThemedButton from '@components/buttons/ThemedButton'
+import { useBottomSheetRef } from '@components/views/BottomSheet'
+import InputSheet from '@components/views/InputSheet'
+import { Characters } from '@lib/state/Characters'
+import { Theme } from '@lib/theme/ThemeManager'
+
+import UserListing from './UserListing'
+
+const UserList = () => {
+    const { t } = useTranslation()
+    const { color, spacing, fontSize } = Theme.useTheme()
+
+    const { data } = useLiveQuery(Characters.db.query.cardListQuery('user'))
+
+    const newUserInputRef = useBottomSheetRef()
+    const { setCard, id } = Characters.useUserStore(
+        useShallow((state) => ({
+            setCard: state.setCard,
+            id: state.id,
+        }))
+    )
+
+    const currentIndex = data.findIndex((item) => item.id === id)
+
+    return (
+        <View style={{ flex: 1 }}>
+            <InputSheet
+                ref={newUserInputRef}
+                title={t('users.create')}
+                autoFocus
+                onConfirm={async (text) => {
+                    const id = await Characters.db.mutate.createCard(text, 'user')
+                    await setCard(id)
+                }}
+            />
+            <View
+                style={{
+                    paddingHorizontal: spacing.xl,
+                    marginBottom: spacing.l,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                }}>
+                <Text
+                    style={{
+                        fontSize: fontSize.l,
+                        color: color.text._300,
+                    }}>
+                    {t('users.profilecount')} ({data.length})
+                </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+                <FlashList
+                    data={data}
+                    showsVerticalScrollIndicator={false}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item, index }) => <UserListing user={item} />}
+                    initialScrollIndex={Math.max(currentIndex, 0)}
+                />
+                <ThemedButton
+                    label={t('users.create')}
+                    onPress={() => newUserInputRef.current?.open()}
+                />
+            </View>
+        </View>
+    )
+}
+
+export default UserList
