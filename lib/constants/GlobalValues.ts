@@ -114,6 +114,11 @@ export const enum Global {
     PerformanceProfileV3 = 'performance-profile-v3',
     PerformanceProfileV4 = 'performance-profile-v4',
     PerformanceProfileV5 = 'performance-profile-v5',
+    PerformanceProfileV6 = 'performance-profile-v6',
+    // Set while a GPU (OpenCL) session is live, cleared once a generation
+    // finishes or the model unloads. Left behind at startup means the last
+    // session died while the GPU backend was active.
+    GpuSessionDirty = 'gpu-session-dirty',
 }
 
 export enum AppSettings {

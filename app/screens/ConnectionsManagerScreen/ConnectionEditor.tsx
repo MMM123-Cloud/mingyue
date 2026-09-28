@@ -102,6 +102,17 @@ const ConnectionEditor: React.FC<ConnectionEditorProps> = ({ index, ref, origina
         })
     }
 
+    const manualModelId = getNestedValue(values.model, template.model.nameParser) ?? ''
+
+    const handleManualModelId = (modelId: string) => {
+        const keys = template.model.nameParser.split('.')
+        let model: any = modelId
+        for (let i = keys.length - 1; i >= 0; i--) {
+            model = { [keys[i]]: model }
+        }
+        setValues({ ...values, model })
+    }
+
     if (values.configName !== template.name) {
         Logger.errorToast(
             t('connections.editor.invalidTemplate'),
@@ -227,6 +238,19 @@ const ConnectionEditor: React.FC<ConnectionEditorProps> = ({ index, ref, origina
                                     />
                                 )}
                             </View>
+
+                            {modelList.length === 0 && !template.features.multipleModels && (
+                                <View style={{ marginTop: 8 }}>
+                                    <ThemedTextInput
+                                        label={t('connections.editor.modelId')}
+                                        value={manualModelId}
+                                        onChangeText={handleManualModelId}
+                                    />
+                                    <Text style={styles.hintText}>
+                                        {t('connections.editor.modelIdHint')}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                     )}
 

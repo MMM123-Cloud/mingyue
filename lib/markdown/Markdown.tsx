@@ -272,6 +272,25 @@ export namespace MarkdownStyle {
                 })
             }
 
+            const hasRtl = componentRuns.some((run) => run.direction === 'rtl')
+            if (!hasRtl) {
+                return (
+                    <Text
+                        key={node.key}
+                        style={[
+                            styles.textgroup,
+                            {
+                                flexWrap: 'wrap',
+                                width: '100%',
+                                writingDirection: 'ltr',
+                                textAlign: 'left',
+                            },
+                        ]}>
+                        {children}
+                    </Text>
+                )
+            }
+
             return (
                 <View key={node.key} style={{ width: '100%', flexWrap: 'wrap' }}>
                     {componentRuns.map((run, index) => {

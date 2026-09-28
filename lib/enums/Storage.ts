@@ -21,5 +21,6 @@ export enum Storage {
     Relationships = 'relationship-storage',
     DeveloperContact = 'developer-contact-storage',
     ContentMode = 'content-mode-storage',
+    DirectChat = 'direct-chat-storage',
     ModelScanDirectory = 'model-scan-directory',
 }

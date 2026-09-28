@@ -1,13 +1,13 @@
 {
     "supportPage": {
-        "button": "支持明月",
+        "button": "联系开发者",
+        "copyContact": "复制我的联系方式",
         "free": "所有功能永久免费，不会因为是否赞助而限制任何功能。",
-        "label": "全部功能免费，赞助完全自愿：",
-        "qrHint": "扫码即可支持明月，金额随意。",
-        "qrPending": "支持码暂未配置。",
-        "thanks": "感谢你支持明月。",
-        "title": "支持明月",
-        "voluntary": "赞助不会解锁功能、不会改变 AI 表现，也不会获得特殊权限。"
+        "label": "遇到问题，或想第一时间拿到更新，可以直接联系我：",
+        "leaveContact": "也可以留下你的联系方式，以便我在更新时通知你",
+        "thanks": "感谢你使用明月。",
+        "title": "联系开发者",
+        "voluntary": "明月完全免费，没有赞助入口，也不会向你索取任何费用。"
     },
     "about": {
         "description": {
@@ -24,8 +24,8 @@
         "license": "查看开源许可",
         "licenseDescription": "本项目基于 ChatterUI 开源项目修改，并按 AGPL-3.0 许可发布。",
         "support": {
-            "button": "支持明月",
-            "label": "如果愿意支持开发："
+            "button": "联系开发者",
+            "label": "开发者 QQ：2703568134"
         },
         "versionPrefix": "v"
     },
@@ -466,6 +466,8 @@
             "fullUrlHint": "注意：使用完整 URL 路径",
             "invalidTemplate": "无法获取有效模板！",
             "model": "模型",
+            "modelId": "模型 ID（手动填写）",
+            "modelIdHint": "列表拉不到模型时，直接填模型名，例如 deepseek-chat",
             "modelUrl": "模型 URL",
             "prefill": "预填充",
             "prefillHint": "在模型响应前预填充",

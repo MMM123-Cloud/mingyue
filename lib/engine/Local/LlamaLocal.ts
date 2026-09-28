@@ -16,7 +16,7 @@ import { AppDirectory, fileExists, readableFileSize, writeBase64File } from '@li
 
 import { checkGGMLDeprecated } from './GGML'
 import { KV, Model } from './Model'
-import { AppSettings } from '../../constants/GlobalValues'
+import { AppSettings, Global } from '../../constants/GlobalValues'
 import { Logger } from '../../state/Logger'
 import { createMMKVStorage, mmkv } from '../../storage/MMKV'
 
@@ -88,7 +88,7 @@ let activeCompletion: Promise<void> | undefined
 let modelLoadGeneration = 0
 
 const defaultConfig = {
-    context_length: 4096,
+    context_length: 2048,
     threads: 4,
     gpu_layers: 0,
     batch: 128,
@@ -112,9 +112,9 @@ const getFastRuntimeConfig = (model: ModelDataType, config: LlamaConfig): LlamaC
     if (lightModel)
         return {
             ...config,
-            context_length: 4096,
-            threads: Math.max(config.threads, 6),
-            batch: Math.max(config.batch, 256),
+            context_length: 2048,
+            threads: Math.min(config.threads, 4),
+            batch: 128,
         }
     if (!heavyModel) return config
 
@@ -122,7 +122,7 @@ const getFastRuntimeConfig = (model: ModelDataType, config: LlamaConfig): LlamaC
         ...config,
         context_length: Math.min(config.context_length, veryHeavyModel ? 1536 : 2048),
         threads: Math.min(config.threads, 4),
-        batch: Math.min(config.batch, 128),
+        batch: 128,
     }
 }
 
@@ -157,7 +157,7 @@ export namespace Llama {
                     lastMmproj: state.lastMmproj,
                 }),
                 storage: createMMKVStorage(),
-                version: 7,
+                version: 8,
                 migrate: (persistedState: any, version) => {
                     if (version === 1) {
                         persistedState.config.ctx_shift = true
@@ -203,6 +203,16 @@ export namespace Llama {
                         config.devices = ['GPUOpenCL']
                         persistedState.config = config
                         Logger.info('Migrated to v7 EngineData: 4096 context and OpenCL retry')
+                    }
+                    if (version <= 7) {
+                        const config = persistedState.config ?? {}
+                        config.context_length = Math.min(config.context_length ?? 2048, 2048)
+                        config.threads = Math.min(config.threads ?? 4, 4)
+                        config.batch = Math.min(config.batch ?? 128, 128)
+                        config.gpu_layers = 0
+                        config.devices = []
+                        persistedState.config = config
+                        Logger.info('Migrated to v8 EngineData: CPU-only stability profile')
                     }
                     return persistedState
                 },
@@ -308,9 +318,16 @@ export namespace Llama {
                 loadAttempts.push({ gpuLayers: 0, devices: [], gpu: false })
 
                 let llamaContext: Awaited<ReturnType<typeof tryLoad>>
+                let usingGpu = false
+                // Mark the GPU session as in-flight. If this process dies before the
+                // flag is cleared, the next startup knows OpenCL is unsafe here.
+                if (loadAttempts.some((attempt) => attempt.gpu)) {
+                    mmkv.set(Global.GpuSessionDirty, true)
+                }
                 for (const attempt of loadAttempts) {
                     llamaContext = await tryLoad(attempt.gpuLayers, attempt.devices)
                     if (llamaContext) {
+                        usingGpu = attempt.gpu
                         if (attempt.gpu) Logger.info('GPU offload active (OpenCL)')
                         else if (loadAttempts.length > 1)
                             Logger.warn('GPU offload unavailable, running on CPU')
@@ -318,6 +335,9 @@ export namespace Llama {
                     }
                     if (generation !== modelLoadGeneration) break
                 }
+                // Nothing can reach the GPU backend once we are on CPU, so do not
+                // leave a false crash record behind.
+                if (!usingGpu) mmkv.set(Global.GpuSessionDirty, false)
 
                 if (generation !== modelLoadGeneration) {
                     await llamaContext?.release().catch(() => undefined)
@@ -387,6 +407,7 @@ export namespace Llama {
         },
         unload: async () => {
             modelLoadGeneration++
+            mmkv.set(Global.GpuSessionDirty, false)
             if (get().mmproj) {
                 await get().context?.releaseMultimodal()
             }
@@ -432,6 +453,10 @@ export namespace Llama {
                 })
                 .then(async ({ text, timings }: CompletionOutput) => {
                     completed(text, timings)
+                    if (mmkv.getBoolean(Global.GpuSessionDirty)) {
+                        mmkv.set(Global.GpuSessionDirty, false)
+                        Logger.info('GPU backend survived a full generation')
+                    }
                     Logger.info(
                         `\n---- Start Chat ${get().chatCount} ----\n${textTimings(timings)}\n---- End Chat ${get().chatCount} ----\n`
                     )

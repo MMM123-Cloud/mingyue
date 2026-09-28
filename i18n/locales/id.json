@@ -1,13 +1,13 @@
 {
     "supportPage": {
-        "button": "Dukung MingYue",
+        "button": "Hubungi pengembang",
+        "copyContact": "Salin kontak saya",
         "free": "Semua fitur gratis selamanya. Donasi tidak mengunci fitur apa pun.",
-        "label": "Semua fitur gratis. Dukungan sepenuhnya sukarela:",
-        "qrHint": "Pindai untuk mendukung MingYue. Nominal bebas.",
-        "qrPending": "Kode dukungan belum dikonfigurasi.",
-        "thanks": "Terima kasih telah mendukung MingYue.",
-        "title": "Dukung MingYue",
-        "voluntary": "Donasi tidak membuka fitur, tidak mengubah perilaku AI, dan tidak memberi hak istimewa."
+        "label": "Ada pertanyaan atau ingin update lebih dulu? Hubungi pengembang langsung:",
+        "leaveContact": "Anda juga bisa meninggalkan kontak Anda agar saya dapat menghubungi saat ada update",
+        "thanks": "Terima kasih telah menggunakan MingYue.",
+        "title": "Hubungi pengembang",
+        "voluntary": "MingYue sepenuhnya gratis. Tidak ada tautan donasi dan tidak ada yang meminta uang."
     },
     "about": {
         "description": {
@@ -24,8 +24,8 @@
         "license": "Lihat lisensi sumber terbuka",
         "licenseDescription": "Proyek ini adalah versi modifikasi dari proyek sumber terbuka ChatterUI dan dirilis di bawah AGPL-3.0.",
         "support": {
-            "button": "Dukung MingYue",
-            "label": "Jika ingin mendukung pengembangan:"
+            "button": "Hubungi pengembang",
+            "label": "QQ pengembang: 2703568134"
         },
         "versionPrefix": "v"
     },
@@ -466,6 +466,8 @@
             "fullUrlHint": "Catatan: Gunakan path URL lengkap",
             "invalidTemplate": "Tidak dapat mendapatkan template yang valid!",
             "model": "Model",
+            "modelId": "ID model (manual)",
+            "modelIdHint": "Jika daftar model gagal dimuat, tulis nama model langsung, mis. deepseek-chat",
             "modelUrl": "URL Model",
             "prefill": "Praisi",
             "prefillHint": "Praisi sebelum respons model",

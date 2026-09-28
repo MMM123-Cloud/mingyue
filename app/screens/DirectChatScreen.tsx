@@ -13,8 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import HeaderButton from '@components/views/HeaderButton'
 import HeaderTitle from '@components/views/HeaderTitle'
+import { generateDirectChatAPI, DirectChatMessage } from '@lib/engine/DirectChatAPI'
 import { Llama } from '@lib/engine/Local/LlamaLocal'
+import { Storage } from '@lib/enums/Storage'
+import { useAppMode } from '@lib/state/AppMode'
 import { Logger } from '@lib/state/Logger'
+import { mmkv } from '@lib/storage/MMKV'
 import { Theme } from '@lib/theme/ThemeManager'
 
 type DirectEntry = {
@@ -23,14 +27,54 @@ type DirectEntry = {
     text: string
 }
 
-const DIRECT_SYSTEM_PROMPT = '直接对话模式，用中文自然回复。不要自称 Qwen、通义千问、阿里巴巴或语言模型；如果用户问你是谁，就说你是明月里的本地模型。'
+const MAX_DIRECT_ENTRIES = 160
+
+const DIRECT_SYSTEM_PROMPT =
+    '直接对话模式，用中文自然回复。不要自称 Qwen、通义千问、阿里巴巴或语言模型；如果用户问你是谁，就说你是明月里的本地模型。保持连续对话记忆。'
+
+const readStoredEntries = (): DirectEntry[] => {
+    const raw = mmkv.getString(Storage.DirectChat)
+    if (!raw) return []
+
+    try {
+        const parsed = JSON.parse(raw)
+        if (!Array.isArray(parsed)) return []
+
+        return parsed
+            .filter(
+                (item) =>
+                    item &&
+                    typeof item.id === 'number' &&
+                    typeof item.isUser === 'boolean' &&
+                    typeof item.text === 'string'
+            )
+            .map((item) => ({
+                id: item.id,
+                isUser: item.isUser,
+                text: item.text,
+            }))
+            .slice(-MAX_DIRECT_ENTRIES)
+    } catch {
+        return []
+    }
+}
+
+const persistEntries = (entries: DirectEntry[]) => {
+    mmkv.set(Storage.DirectChat, JSON.stringify(entries.slice(-MAX_DIRECT_ENTRIES)))
+}
 
 const DirectChatScreen = () => {
     const { color, spacing, fontSize } = Theme.useTheme()
-    const [entries, setEntries] = useState<DirectEntry[]>([])
+    const { appMode } = useAppMode()
+    const initialEntries = useRef<DirectEntry[] | null>(null)
+    if (initialEntries.current === null) initialEntries.current = readStoredEntries()
+
+    const [entries, setEntries] = useState<DirectEntry[]>(initialEntries.current)
     const [input, setInput] = useState('')
     const [busy, setBusy] = useState(false)
-    const nextId = useRef(0)
+    const nextId = useRef(
+        initialEntries.current.reduce((max, item) => Math.max(max, item.id + 1), 0)
+    )
     const listRef = useRef<FlatList<DirectEntry>>(null)
 
     const ensureModel = async () => {
@@ -38,7 +82,7 @@ const DirectChatScreen = () => {
         if (store.context) return true
         const lastModel = Llama.useLlamaPreferencesStore.getState().lastModel
         if (!lastModel) {
-            Logger.warnToast('还没有加载模型，先去模型页点一下加载')
+            Logger.warnToast('还没有加载模型，先去模型页点一个加载')
             return false
         }
         await store.load(lastModel)
@@ -55,58 +99,79 @@ const DirectChatScreen = () => {
         const history = [...entries, userEntry]
         setEntries([...history, replyEntry])
         setBusy(true)
+        persistEntries(history)
+
+        let generated = ''
+        const appendToken = (token: string) => {
+            if (!token) return
+            generated += token
+            setEntries((previous) =>
+                previous.map((item) =>
+                    item.id === replyEntry.id ? { ...item, text: item.text + token } : item
+                )
+            )
+        }
 
         try {
-            if (!(await ensureModel())) return
-            const context = Llama.useLlamaModelStore.getState().context
-            if (!context) return
+            const apiHistory: DirectChatMessage[] = history.map((item) => ({
+                role: item.isUser ? 'user' : 'assistant',
+                content: item.text,
+            }))
 
-            const messages = [
-                { role: 'system', content: DIRECT_SYSTEM_PROMPT },
-                ...history.map((item) => ({
-                    role: item.isUser ? 'user' : 'assistant',
-                    content: item.text,
-                })),
-            ]
+            if (appMode === 'remote') {
+                await generateDirectChatAPI({
+                    systemPrompt: DIRECT_SYSTEM_PROMPT,
+                    history: apiHistory,
+                    onToken: appendToken,
+                })
+            } else {
+                if (!(await ensureModel())) {
+                    setEntries(history)
+                    persistEntries(history)
+                    return
+                }
 
-            const formatted = await context.getFormattedChat(messages, null, {
-                jinja: true,
-                enable_thinking: false,
-            })
-            const prompt = typeof formatted === 'string' ? formatted : formatted.prompt
+                const context = Llama.useLlamaModelStore.getState().context
+                if (!context) return
 
-            try {
-                await context.clearCache(false)
-            } catch (e) {
-                Logger.warn('清缓存失败，继续生成')
+                const messages = [{ role: 'system', content: DIRECT_SYSTEM_PROMPT }, ...apiHistory]
+                const formatted = await context.getFormattedChat(messages, null, {
+                    jinja: true,
+                    enable_thinking: false,
+                })
+                const prompt = typeof formatted === 'string' ? formatted : formatted.prompt
+
+                try {
+                    await context.clearCache(false)
+                } catch {
+                    Logger.warn('清缓存失败，继续生成')
+                }
+
+                await context.completion(
+                    {
+                        prompt,
+                        n_predict: 512,
+                        seed: Math.floor(Math.random() * 2147483646),
+                        temperature: 0.8,
+                        top_p: 0.95,
+                        top_k: 40,
+                        min_p: 0.05,
+                        penalty_last_n: 256,
+                        penalty_repeat: 1.12,
+                        penalty_present: 0.1,
+                        penalty_freq: 0.05,
+                        stop: ['<|im_end|>', '<|endoftext|>'],
+                    },
+                    (data) => appendToken(data.token)
+                )
             }
 
-            await context.completion(
-                {
-                    prompt,
-                    n_predict: 512,
-                    seed: Math.floor(Math.random() * 2147483646),
-                    temperature: 0.8,
-                    top_p: 0.95,
-                    top_k: 40,
-                    min_p: 0.05,
-                    penalty_last_n: 256,
-                    penalty_repeat: 1.12,
-                    penalty_present: 0.1,
-                    penalty_freq: 0.05,
-                    stop: ['<|im_end|>', '<|endoftext|>'],
-                },
-                (data) => {
-                    setEntries((previous) =>
-                        previous.map((item) =>
-                            item.id === replyEntry.id
-                                ? { ...item, text: item.text + data.token }
-                                : item
-                        )
-                    )
-                }
-            )
+            const finalEntries = [...history, { ...replyEntry, text: generated }]
+            setEntries(finalEntries)
+            persistEntries(finalEntries)
         } catch (e) {
+            setEntries(history)
+            persistEntries(history)
             Logger.errorToast('直接对话失败', e)
         } finally {
             setBusy(false)
@@ -138,7 +203,7 @@ const DirectChatScreen = () => {
                                 textAlign: 'center',
                                 marginTop: spacing.xl2,
                             }}>
-                            不给模型任何人设和限制，直接对话。
+                            直接和模型说话，聊天记录会自动保留。
                         </Text>
                     }
                     renderItem={({ item }) => (
@@ -161,8 +226,7 @@ const DirectChatScreen = () => {
                                     color: color.text._100,
                                     fontSize: fontSize.l,
                                 }}>
-                                {item.text ||
-                                    (busy && !item.isUser ? '' : '')}
+                                {item.text}
                             </Text>
                         </View>
                     )}
@@ -213,7 +277,7 @@ const DirectChatScreen = () => {
                         {busy ? (
                             <ActivityIndicator color={color.text._100} />
                         ) : (
-                            <Text style={{ color: color.text._100, fontSize: fontSize.l }}>↑</Text>
+                            <Text style={{ color: color.text._100, fontSize: fontSize.l }}>→</Text>
                         )}
                     </Pressable>
                 </View>

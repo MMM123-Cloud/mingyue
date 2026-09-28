@@ -3,8 +3,9 @@ const path = require('path')
 const { PNG } = require('pngjs')
 
 const root = path.resolve(__dirname, '..')
-const sourcePath = 'C:/Users/zjf20/Downloads/1790502410636.png'
-const source = PNG.sync.read(fs.readFileSync(sourcePath))
+// Optional: pass a source image path to also write a downscaled preview into
+// work/ (git-ignored scratch space). The app icons are drawn procedurally.
+const sourcePath = process.argv[2]
 
 function resize(image, width, height) {
     const output = new PNG({ width, height })
@@ -197,5 +198,7 @@ writeImage('assets/images/ios-light.png', fullIcon(1025))
 writeImage('assets/images/notification.png', moonForeground(96))
 writeImage('assets/images/splash.png', fullIcon(1024))
 
-const sourcePreview = resize(source, 512, 512)
-writeImage('work/mingyue-source-preview.png', sourcePreview)
+if (sourcePath) {
+    const source = PNG.sync.read(fs.readFileSync(sourcePath))
+    writeImage('work/mingyue-source-preview.png', resize(source, 512, 512))
+}

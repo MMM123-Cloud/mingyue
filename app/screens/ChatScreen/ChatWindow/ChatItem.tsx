@@ -1,5 +1,4 @@
-import { StyleSheet } from 'react-native'
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated'
+import { StyleSheet, View } from 'react-native'
 
 import { useLiveQueryJoined } from '@lib/hooks/LiveQueryJoined'
 import { useQueuedLiveQuery } from '@lib/hooks/LiveQueryQueued'
@@ -16,14 +15,6 @@ type ChatItemProps = {
 }
 
 type ChatItemBodyProps = ChatItemProps & { entrySwipeIds: number[] }
-
-const NEWEST_LAYOUT = LinearTransition.duration(220)
-    .springify()
-    .mass(0.3)
-    .damping(20)
-    .stiffness(300)
-const ENTERING = FadeIn.duration(180)
-const EXITING = FadeOut.duration(120)
 
 const ChatItem: React.FC<ChatItemProps> = ({ entryId, ...rest }) => {
     const { data: swipeidList } = useLiveQueryJoined(
@@ -64,11 +55,8 @@ const ChatItemBody: React.FC<ChatItemBodyProps> = ({
     if (!entry || entrySwipeIds.length === 0) return // this should never be hit
 
     return (
-        <Animated.View
+        <View
             {...rest}
-            layout={index === 0 ? NEWEST_LAYOUT : undefined}
-            exiting={index === 0 ? EXITING : undefined}
-            entering={index === 0 ? ENTERING : undefined}
             style={[
                 styles.chatItem,
                 {
@@ -89,7 +77,7 @@ const ChatItemBody: React.FC<ChatItemBodyProps> = ({
                     isGreeting={isGreeting}
                 />
             </ChatFrame>
-        </Animated.View>
+        </View>
     )
 }
 

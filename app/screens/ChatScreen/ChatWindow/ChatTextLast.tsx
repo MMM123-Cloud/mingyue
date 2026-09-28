@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Animated, Easing, useAnimatedValue, View } from 'react-native'
+import { View } from 'react-native'
 import Markdown from 'react-native-markdown-display'
 
 import ThemedButton from '@components/buttons/ThemedButton'
@@ -30,82 +30,41 @@ const ChatTextLast: React.FC<ChatTextProps> = ({
 
     const { buffer } = Chats.useBuffer()
     const [showHidden, setShowHidden] = useState(false)
-    const viewRef = useRef<View>(null)
     const currentSwipeId = useInference((state) => state.currentSwipeId)
-    const animHeight = useAnimatedValue(-1)
-    const targetHeight = useRef(-1)
-    const firstRender = useRef(true)
-
-    const updateHeight = useCallback(() => {
-        viewRef.current?.measure((_, __, ___, measuredHeight) => {
-            if (firstRender.current) {
-                firstRender.current = false
-                animHeight.setValue(measuredHeight)
-                return
-            }
-            const showPadding = nowGenerating && buffer.data
-            const overflowPadding = showPadding ? 12 : 0
-            const newHeight = measuredHeight + overflowPadding
-
-            if (targetHeight.current === newHeight) return
-            if (targetHeight.current > -1) animHeight.setValue(targetHeight.current)
-
-            animHeight.stopAnimation(() =>
-                Animated.timing(animHeight, {
-                    toValue: newHeight,
-                    duration: 300 * Math.max(1, Math.abs(newHeight - targetHeight.current) / 1000),
-                    useNativeDriver: false,
-                    easing: Easing.inOut((x) => x * x),
-                }).start()
-            )
-            targetHeight.current = newHeight
-        })
-    }, [animHeight, buffer.data, nowGenerating])
-
-    useEffect(() => {
-        if (!nowGenerating && !firstRender.current) {
-            setTimeout(() => updateHeight(), 400)
-        }
-    }, [nowGenerating, updateHeight])
 
     const safeSwipe = isUser ? (swipe.swipe ?? '') : sanitizeAssistantOutput(swipe.swipe ?? '')
     const filteredText = useTextFilter(safeSwipe)
     const renderedText = showHidden ? safeSwipe : filteredText.result
     const generatingText = sanitizeAssistantOutput(buffer.data).trim()
-    const activeText =
-        nowGenerating && swipe.id === currentSwipeId ? generatingText : renderedText
+    const activeText = nowGenerating && swipe.id === currentSwipeId ? generatingText : renderedText
     const displayText = variant === 'dialogue' ? splitNarration(activeText).dialogue : activeText
 
     return (
-        <Animated.View style={{ overflow: 'scroll', height: animHeight }}>
-            <View style={{ minHeight: 10 }} ref={viewRef} onLayout={updateHeight}>
-                {swipe.id === currentSwipeId && nowGenerating && generatingText === '' && (
-                    <AnimatedEllipsis />
-                )}
-                <Markdown mergeStyle={false} markdownit={markdown} rules={rules} style={style}>
-                    {displayText}
-                </Markdown>
-                {filteredText.found && (
-                    <View style={{ flexDirection: 'row' }}>
-                        <ThemedButton
-                            onPress={() => setShowHidden(!showHidden)}
-                            variant="secondary"
-                            label={
-                                showHidden
-                                    ? t('chat.filteredText.hide')
-                                    : t('chat.filteredText.show')
-                            }
-                            labelStyle={{ flex: 0, fontSize: 12 }}
-                            buttonStyle={{
-                                paddingVertical: 0,
-                                paddingHorizontal: 0,
-                                borderWidth: 0,
-                            }}
-                        />
-                    </View>
-                )}
-            </View>
-        </Animated.View>
+        <View style={{ minHeight: 10 }}>
+            {swipe.id === currentSwipeId && nowGenerating && generatingText === '' && (
+                <AnimatedEllipsis />
+            )}
+            <Markdown mergeStyle={false} markdownit={markdown} rules={rules} style={style}>
+                {displayText}
+            </Markdown>
+            {filteredText.found && (
+                <View style={{ flexDirection: 'row' }}>
+                    <ThemedButton
+                        onPress={() => setShowHidden(!showHidden)}
+                        variant="secondary"
+                        label={
+                            showHidden ? t('chat.filteredText.hide') : t('chat.filteredText.show')
+                        }
+                        labelStyle={{ flex: 0, fontSize: 12 }}
+                        buttonStyle={{
+                            paddingVertical: 0,
+                            paddingHorizontal: 0,
+                            borderWidth: 0,
+                        }}
+                    />
+                </View>
+            )}
+        </View>
     )
 }
 

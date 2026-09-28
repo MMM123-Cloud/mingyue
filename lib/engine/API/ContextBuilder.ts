@@ -138,14 +138,10 @@ export const collectContext = async (params: ContextBuilderParams & { mode: 'cha
     }
     const hasDuplicateAssistant = duplicateAssistantIds.size > 0
 
-    // A repeated assistant paragraph can dominate the next prediction. For one turn, feed
-    // only the newest user entry so there is no old assistant wording to copy.
-    const contextSourceMessages = hasDuplicateAssistant
-        ? chronologicalMessages
-              .filter((item) => item.is_user && !item.recalled_at && !!item.swipes[0]?.swipe)
-              .slice(-1)
-        : chronologicalMessages
-    const effectiveMessageLoader = hasDuplicateAssistant ? undefined : messageLoader
+    // Keep the full conversation whenever possible. Removing every assistant message makes
+    // the model lose its role and can cause it to imitate the user's wording instead.
+    const contextSourceMessages = chronologicalMessages
+    const effectiveMessageLoader = messageLoader
 
     const delta = performance.now()
 
@@ -235,9 +231,10 @@ export const collectContext = async (params: ContextBuilderParams & { mode: 'cha
 
         const role: 'user' | 'assistant' = message.is_user ? 'user' : 'assistant'
 
-        const avoidRepeatTail = hasDuplicateAssistant && isLast && message.is_user
-            ? '\n[直接回应上一条最新消息，不要复述任何上一轮助手回复、动作或结尾。]'
-            : ''
+        const avoidRepeatTail =
+            hasDuplicateAssistant && isLast && message.is_user
+                ? '\n[直接回应上一条最新消息，不要复述任何上一轮助手回复、动作或结尾。]'
+                : ''
 
         const content = replaceMacrosInternal(
             `${timestamp}${name}${swipe.swipe}${avoidRepeatTail}`,

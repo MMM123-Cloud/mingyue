@@ -150,6 +150,26 @@ const applyPerformanceProfileV5 = () => {
     Logger.info('Applied GPU profile v5: Adreno OpenCL offload with automatic CPU fallback')
 }
 
+const applyPerformanceProfileV6 = () => {
+    const llamaStore = Llama.useLlamaPreferencesStore.getState()
+
+    // A dirty flag means the last run ended while the OpenCL backend was still
+    // live, so the process died before it could finish a generation.
+    const crashedOnGpu = mmkv.getBoolean(Global.GpuSessionDirty)
+    mmkv.set(Global.GpuSessionDirty, false)
+
+    const firstRun = !mmkv.getBoolean(Global.PerformanceProfileV6)
+    if (!crashedOnGpu && !firstRun) return
+
+    llamaStore.setConfiguration({ ...llamaStore.config, gpu_layers: 0, devices: [] })
+
+    if (crashedOnGpu) Logger.warn('Last session ended with OpenCL offload active; switched to CPU')
+    if (firstRun) {
+        mmkv.set(Global.PerformanceProfileV6, true)
+        Logger.info('Applied stability profile v6: OpenCL offload disabled by default')
+    }
+}
+
 const createDefaultCard = async () => {
     if (!mmkv.getBoolean(AppSettings.CreateDefaultCard)) return
     const result = await Characters.db.query.cardList('character')
@@ -339,6 +359,7 @@ export const startupApp = () => {
     applyPerformanceProfileV3()
     applyPerformanceProfileV4()
     applyPerformanceProfileV5()
+    applyPerformanceProfileV6()
     generateDefaultDirectories()
     setDefaultUser()
     setDefaultInstruct()

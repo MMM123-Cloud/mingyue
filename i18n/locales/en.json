@@ -1,13 +1,13 @@
 {
     "supportPage": {
-        "button": "Support MingYue",
+        "button": "Contact the developer",
+        "copyContact": "Copy my contact info",
         "free": "Every feature is free forever. Nothing is locked behind a donation.",
-        "label": "All features are free. Support is completely voluntary:",
-        "qrHint": "Scan to support MingYue. Any amount is appreciated.",
-        "qrPending": "The support code has not been configured yet.",
-        "thanks": "Thank you for supporting MingYue.",
-        "title": "Support MingYue",
-        "voluntary": "Donations do not unlock features, change AI behavior, or grant special privileges."
+        "label": "Questions, or want updates first? Contact the developer directly:",
+        "leaveContact": "You can also leave your own contact info so I can reach you about updates",
+        "thanks": "Thanks for using MingYue.",
+        "title": "Contact the developer",
+        "voluntary": "MingYue is completely free. There is no donation link, and nobody will ask you for money."
     },
     "about": {
         "description": {
@@ -24,8 +24,8 @@
         "license": "View open-source license",
         "licenseDescription": "This project is a modified version of the open-source ChatterUI project and is released under AGPL-3.0.",
         "support": {
-            "button": "Support MingYue",
-            "label": "If you would like to support development:"
+            "button": "Contact the developer",
+            "label": "Developer QQ: 2703568134"
         },
         "versionPrefix": "v"
     },
@@ -466,6 +466,8 @@
             "fullUrlHint": "Note: Use full URL path",
             "invalidTemplate": "Could not get valid template!",
             "model": "Model",
+            "modelId": "Model ID (manual)",
+            "modelIdHint": "If the model list cannot be loaded, type the model name directly, e.g. deepseek-chat",
             "modelUrl": "Model URL",
             "prefill": "Prefill",
             "prefillHint": "Prefill before model response",

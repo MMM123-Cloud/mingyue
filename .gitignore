@@ -65,3 +65,12 @@ outputs/
 *.log
 *.hprof
 local.properties
+
+# ---- privacy: never commit personal captures or test material ----
+Screenshot_*.png
+Screenshot_*.jpg
+IMG_*.png
+IMG_*.jpg
+codex-clipboard-*.png
+*_temp*.jpg
+*_temp*.png

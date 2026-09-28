@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 
 import { setStringAsync } from 'expo-clipboard'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -13,20 +13,22 @@ import HeaderTitle from '@components/views/HeaderTitle'
 import { Logger } from '@lib/state/Logger'
 import { Theme } from '@lib/theme/ThemeManager'
 
+const DEVELOPER_QQ = '2703568134'
+
 const SupportScreen = () => {
     const { t } = useTranslation()
     const router = useRouter()
     const styles = useStyles()
     const [contact, setContact] = useState('')
 
-    const handleCopyContact = async () => {
-        const value = contact.trim()
-        if (!value) {
-            Logger.warnToast('请先填写联系方式')
+    const copyText = async (value: string, emptyHint: string, doneHint: string) => {
+        const trimmed = value.trim()
+        if (!trimmed) {
+            Logger.warnToast(emptyHint)
             return
         }
-        await setStringAsync(value)
-        Logger.infoToast('联系方式已复制，可粘贴到转账备注')
+        await setStringAsync(trimmed)
+        Logger.infoToast(doneHint)
     }
 
     return (
@@ -47,15 +49,17 @@ const SupportScreen = () => {
                     <Text style={styles.freeText}>{t('supportPage.free')}</Text>
                 </View>
                 <Text style={styles.label}>{t('supportPage.label')}</Text>
-                <View style={styles.qrFrame}>
-                    <Image
-                        source={require('../../assets/images/support-code.png')}
-                        style={styles.qr}
-                        resizeMode="contain"
-                    />
+                <View style={styles.contactCard}>
+                    <Text style={styles.contactName}>开发者 QQ</Text>
+                    <Text style={styles.contactValue}>{DEVELOPER_QQ}</Text>
                 </View>
-                <Text style={styles.qrHint}>{t('supportPage.qrHint')}</Text>
-                <Text style={styles.contactLabel}>请留下联系方式，以便于我更新时联系您</Text>
+                <ThemedButton
+                    label="复制开发者 QQ"
+                    variant="secondary"
+                    buttonStyle={styles.copyButton}
+                    onPress={() => copyText(DEVELOPER_QQ, '暂无联系方式', '开发者 QQ 已复制')}
+                />
+                <Text style={styles.contactLabel}>{t('supportPage.leaveContact')}</Text>
                 <ThemedTextInput
                     value={contact}
                     onChangeText={setContact}
@@ -63,10 +67,12 @@ const SupportScreen = () => {
                     containerStyle={styles.contactInput}
                 />
                 <ThemedButton
-                    label="复制联系方式"
+                    label={t('supportPage.copyContact')}
                     variant="secondary"
                     buttonStyle={styles.copyButton}
-                    onPress={handleCopyContact}
+                    onPress={() =>
+                        copyText(contact, '请先填写联系方式', '联系方式已复制，可发给我')
+                    }
                 />
                 <Text style={styles.voluntary}>{t('supportPage.voluntary')}</Text>
                 <Text style={styles.thanks}>{t('supportPage.thanks')}</Text>
@@ -112,23 +118,24 @@ const useStyles = () => {
             marginTop: spacing.xl2,
             marginBottom: spacing.xl,
         },
-        qrFrame: {
-            width: 264,
-            height: 264,
-            padding: spacing.m,
-            borderRadius: borderRadius.l,
-            backgroundColor: '#FFFFFF',
-        },
-        qr: {
+        contactCard: {
             width: '100%',
-            height: '100%',
+            alignItems: 'center',
+            paddingVertical: spacing.xl,
+            borderRadius: borderRadius.m,
+            borderWidth: 1,
+            borderColor: color.neutral._400,
+            backgroundColor: color.neutral._200,
         },
-        qrHint: {
+        contactName: {
+            color: color.text._200,
+            fontSize: fontSize.m,
+        },
+        contactValue: {
             color: color.text._100,
             fontSize: fontSize.xl,
             fontWeight: '600',
-            textAlign: 'center',
-            marginTop: spacing.xl,
+            marginTop: spacing.s,
         },
         contactLabel: {
             width: '100%',

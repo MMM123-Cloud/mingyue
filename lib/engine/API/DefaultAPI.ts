@@ -2,6 +2,8 @@ import { SamplerID } from '@lib/constants/SamplerData'
 
 import { APIConfiguration } from './APIBuilder.types'
 
+import { providerPresets } from './ProviderPresets'
+
 export const defaultTemplates: APIConfiguration[] = [
     // OPENAI
     {
@@ -926,4 +928,7 @@ export const defaultTemplates: APIConfiguration[] = [
             },
         },
     },
+
+    // Built-in presets for common providers, see ProviderPresets.ts
+    ...providerPresets,
 ]

@@ -5,7 +5,7 @@ module.exports = {
         name: IS_DEV ? '明月 (DEV)' : '明月',
         newArchEnabled: true,
         slug: 'mingyue-ai',
-        version: '0.10.24',
+        version: '0.10.29',
         orientation: 'default',
         icon: './assets/images/icon.png',
         scheme: 'mingyue',

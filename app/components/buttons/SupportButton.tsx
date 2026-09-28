@@ -17,7 +17,7 @@ const SupportButton = () => {
             onPress={() => router.push('/screens/SupportScreen')}
             variant="secondary"
             label={t('supportPage.button')}
-            icon={<MaterialIcons name="coffee" size={16} color={theme.color.primary._700} />}
+            icon={<MaterialIcons name="support-agent" size={16} color={theme.color.primary._700} />}
         />
     )
 }
