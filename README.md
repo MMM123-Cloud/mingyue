@@ -77,7 +77,6 @@ AGPL-3.0，完整协议见 [LICENSE](./LICENSE)。
 ## 联系
 
 开发者 2703568134(qq)
-zjf20061028@qq.com
 mmbl1234567@gmail.com
 （更新通知 / 问题反馈）
 
