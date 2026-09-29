@@ -1,6 +1,11 @@
 import { t } from 'i18next'
 
 import { getContentRules } from '@lib/constants/ContentRules'
+import {
+    EMOTIONAL_GUIDE,
+    buildEmotionDirective,
+    inferUserEmotion,
+} from '@lib/constants/EmotionalSupport'
 import { Llama } from '@lib/engine/Local/LlamaLocal'
 import { getContentModeForModel, useContentModeStore } from '@lib/state/ContentMode'
 import { AppSettings } from '@lib/constants/GlobalValues'
@@ -167,6 +172,12 @@ export const collectContext = async (params: ContextBuilderParams & { mode: 'cha
         volatilePrompt +=
             '\n【避免复读】你最近两轮的回复高度重复。不要复述上一轮的句子、动作或结尾，直接回应用户最新一句。'
     }
+
+    const latestUserText = [...messages]
+        .sort((a, b) => a.id - b.id)
+        .filter((item) => item.is_user && !item.recalled_at)
+        .at(-1)?.swipes[0]?.swipe
+    volatilePrompt += `\n${buildEmotionDirective(inferUserEmotion(latestUserText))}`
 
     // Measure the real prompt with the model tokenizer instead of estimating by characters.
     systemPromptLength = await tokenizer(systemPrompt)
@@ -659,6 +670,8 @@ export const getSystemPrompt = ({
     )
     systemPrompt += contentRules
     systemPromptLength += 520
+    systemPrompt += EMOTIONAL_GUIDE
+    systemPromptLength += EMOTIONAL_GUIDE.length
     const relationship = character?.id ? useRelationshipStore.getState() : undefined
     const relationshipProfile = relationship?.profiles[String(character?.id)]
     const isPartner = relationship?.partnerCharacterId === character?.id
