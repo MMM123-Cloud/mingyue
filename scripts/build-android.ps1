@@ -51,7 +51,8 @@ try {
         Where-Object { Test-Path (Join-Path $_.FullName 'apksigner.bat') } |
         Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
     New-Item -ItemType Directory -Path 'dist' -Force | Out-Null
-    $outputApk = Join-Path $projectDirectory 'dist/MingYue-LiquidGlass-0.12.0.apk'
+    $packageVersion = (Get-Content -LiteralPath (Join-Path $projectDirectory 'package.json') -Raw | ConvertFrom-Json).version
+    $outputApk = Join-Path $projectDirectory "dist/MingYue-LiquidGlass-$packageVersion.apk"
     $applicationBuildDirectory = if ($env:MINGYUE_APP_BUILD_DIRECTORY) { $env:MINGYUE_APP_BUILD_DIRECTORY } else { Join-Path $projectDirectory 'android/app/build' }
     $unsignedApk = Join-Path $applicationBuildDirectory 'outputs/apk/release/app-release.apk'
     & (Join-Path $buildTools.FullName 'apksigner.bat') sign --ks $keystorePath --ks-key-alias mingyue --ks-pass env:MINGYUE_SIGNING_PASSWORD --key-pass env:MINGYUE_SIGNING_PASSWORD --out $outputApk $unsignedApk

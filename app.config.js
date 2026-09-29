@@ -5,7 +5,7 @@ module.exports = {
         name: IS_DEV ? '明月 (DEV)' : '明月',
         newArchEnabled: true,
         slug: 'mingyue-ai',
-        version: '0.12.0',
+        version: '0.13.0',
         orientation: 'default',
         icon: './assets/images/liquid-icon.png',
         scheme: 'mingyue',
@@ -22,7 +22,7 @@ module.exports = {
             bundleIdentifier: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue',
         },
         android: {
-            versionCode: 12000,
+            versionCode: 13000,
             adaptiveIcon: {
                 foregroundImage: './assets/images/liquid-icon-foreground.png',
                 monochromeImage: './assets/images/liquid-icon-foreground.png',
