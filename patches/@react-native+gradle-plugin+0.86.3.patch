@@ -1,0 +1,13 @@
+diff --git a/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt b/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
+--- a/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
++++ b/node_modules/@react-native/gradle-plugin/shared/src/main/kotlin/com/facebook/react/utils/Os.kt
+@@ -38,7 +38,8 @@
+    */
+   fun File.cliPath(base: File): String =
+       if (isWindows()) {
+-        this.relativeTo(base).path
++        // Windows build outputs may live on a different drive from the project.
++        this.relativeToOrSelf(base).path
+       } else {
+         absolutePath
+       }

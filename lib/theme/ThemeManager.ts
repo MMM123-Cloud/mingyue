@@ -10,6 +10,7 @@ import { Logger } from '@lib/state/Logger'
 import { createMMKVStorage } from '@lib/storage/MMKV'
 
 import { DefaultColorSchemes, ThemeColor, themeColorSchemaV1 } from './ThemeColor'
+import { migrateLiquidTheme } from './ThemeMigration'
 
 interface ColorStateProps {
     useSystemDarkMode: boolean
@@ -35,9 +36,9 @@ export namespace Theme {
         persist(
             (set, get) => ({
                 useSystemDarkMode: false,
-                color: DefaultColorSchemes.mingYueDark,
+                color: DefaultColorSchemes.yueBaiLight,
                 darkColor: DefaultColorSchemes.mingYueDark,
-                lightColor: DefaultColorSchemes.mingYueDark,
+                lightColor: DefaultColorSchemes.yueBaiLight,
                 setColor: (color) => {
                     set({ color: color })
                 },
@@ -77,7 +78,7 @@ export namespace Theme {
                     Logger.info(`Successfully imported ${colorScheme.name}`)
                 },
                 removeColorScheme: (index: number) => {
-                    if (index > get().customColors.length) {
+                    if (index < 0 || index >= get().customColors.length) {
                         return
                     }
                     const colors = [...get().customColors]
@@ -91,7 +92,7 @@ export namespace Theme {
                         if (removed.name === lightColor.name)
                             lightColor = DefaultColorSchemes.yueBaiLight
                         if (removed.name === darkColor.name)
-                            darkColor = DefaultColorSchemes.yueBaiLight
+                            darkColor = DefaultColorSchemes.mingYueDark
                     }
                     set({
                         customColors: colors,
@@ -104,7 +105,7 @@ export namespace Theme {
             {
                 name: Storage.ColorState,
                 storage: createMMKVStorage(),
-                version: 3,
+                version: 5,
                 partialize: (state) => ({
                     color: state.color,
                     customColors: state.customColors,
@@ -119,7 +120,15 @@ export namespace Theme {
                         persistedState.lightColor = DefaultColorSchemes.mingYueDark
                         persistedState.useSystemDarkMode = false
                     }
-                    return persistedState
+                    if (version <= 3) {
+                        if (persistedState.color?.name === '明月 Dark')
+                            persistedState.color = DefaultColorSchemes.mingYueDark
+                        if (persistedState.darkColor?.name === '明月 Dark')
+                            persistedState.darkColor = DefaultColorSchemes.mingYueDark
+                        if (persistedState.lightColor?.name === '明月 Dark')
+                            persistedState.lightColor = DefaultColorSchemes.yueBaiLight
+                    }
+                    return version <= 4 ? migrateLiquidTheme(persistedState) : persistedState
                 },
             }
         )

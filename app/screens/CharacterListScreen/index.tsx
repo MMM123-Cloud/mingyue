@@ -12,7 +12,7 @@ const CharacterListScreen = () => {
                 { drawerID: Drawer.ID.SETTINGS, openDirection: 'right', closeDirection: 'left' },
             ]}>
             <SafeAreaView
-                edges={['top', 'bottom']}
+                edges={['top']}
                 style={{
                     flex: 1,
                     flexDirection: 'row',

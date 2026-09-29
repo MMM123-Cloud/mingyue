@@ -17,6 +17,7 @@ import { Characters } from '@lib/state/Characters'
 import { Chats } from '@lib/state/Chat'
 import { Logger } from '@lib/state/Logger'
 import { useRelationshipStore } from '@lib/state/Relationships'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 import { ChatImportSchema } from '@lib/utils/ChatSchema'
 import { FileUtils } from '@lib/utils/File'
@@ -48,7 +49,7 @@ const ChatScreen = () => {
     const { height } = useReanimatedKeyboardAnimation()
     const animatedStyle = useAnimatedStyle(() => {
         return {
-            paddingBottom: -height.value - insets.bottom,
+            paddingBottom: Math.max(0, -height.value - insets.bottom),
             flex: 1,
         }
     })
@@ -183,7 +184,7 @@ const ChatScreen = () => {
                                             paddingHorizontal: 4,
                                             paddingVertical: 4,
                                             borderRadius: 24,
-                                            backgroundColor: color.neutral._100 + 'e8',
+                                            backgroundColor: withAlpha(color.neutral._100, 'e8'),
                                             borderWidth: 1,
                                             borderColor: color.neutral._300,
                                             flexDirection: 'row',

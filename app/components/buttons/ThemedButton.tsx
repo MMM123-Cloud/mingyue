@@ -44,7 +44,7 @@ const useButtonTheme = (variant: ButtonVariant): ButtonTheme => {
         case 'primary':
             return {
                 buttonStyle: {
-                    backgroundColor: theme.color.primary._500,
+                    backgroundColor: theme.color.primary._600,
                     borderColor: theme.color.primary._200,
                     borderWidth: theme.borderWidth.m,
                     paddingVertical: theme.spacing.m,
@@ -92,7 +92,7 @@ const useButtonTheme = (variant: ButtonVariant): ButtonTheme => {
                 },
                 labelStyle: {
                     textAlign: 'center',
-                    color: theme.color.error._400,
+                    color: theme.color.error._700,
                 },
             }
         case 'disabled':
@@ -143,6 +143,8 @@ const ThemedButton: React.FC<ThemedButtonProps> = ({
 
     return (
         <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={rest.accessibilityLabel ?? label ?? iconName}
             disabled={variant === 'disabled'}
             onPressIn={(event) => {
                 handlePressIn()
@@ -156,6 +158,9 @@ const ThemedButton: React.FC<ThemedButtonProps> = ({
             style={StyleSheet.flatten([
                 theme.buttonStyle,
                 {
+                    minHeight: 48,
+                    minWidth: 48,
+                    borderRadius: 16,
                     flexDirection: 'row',
                     columnGap: 8,
                     justifyContent: 'center',

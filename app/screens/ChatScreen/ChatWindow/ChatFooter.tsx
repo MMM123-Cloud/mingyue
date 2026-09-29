@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { Text, View } from 'react-native'
 
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 const ChatFooter = ({ chatLength }: { chatLength: number }) => {
@@ -17,7 +18,7 @@ const ChatFooter = ({ chatLength }: { chatLength: number }) => {
             }}>
             <View
                 style={{
-                    backgroundColor: color.neutral._100 + '22',
+                    backgroundColor: withAlpha(color.neutral._100, '22'),
                     borderRadius: 8,
                     paddingHorizontal: 12,
                     paddingVertical: 4,

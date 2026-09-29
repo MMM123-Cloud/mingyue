@@ -8,6 +8,7 @@ import { AppSettings } from '@lib/constants/GlobalValues'
 import { useAppMode } from '@lib/state/AppMode'
 import { Chats, useInference } from '@lib/state/Chat'
 import { splitNarration } from '@lib/markdown/Narration'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 import ChatAttachments from './ChatAttachments'
@@ -43,7 +44,7 @@ const ChatBubble: React.FC<ChatTextProps> = ({
     const { buffer } = Chats.useBuffer()
     const currentSwipeId = useInference((state) => state.currentSwipeId)
 
-    const swipe = entry.swipes[0]
+    const swipe = entry?.swipes[0]
     if (!entry || !swipe) return
 
     const showSwipe = !entry.is_user && isLastMessage
@@ -51,19 +52,16 @@ const ChatBubble: React.FC<ChatTextProps> = ({
     const transfer = parseTransfer(swipe.swipe)
     const location = parseLocation(swipe.swipe)
     const isStreaming = nowGenerating && swipe.id === currentSwipeId
-    const messageText = isStreaming
-        ? sanitizeAssistantOutput(buffer.data)
-        : swipe.swipe
+    const messageText = isStreaming ? sanitizeAssistantOutput(buffer.data) : swipe.swipe
     const { narration, dialogue } = splitNarration(messageText)
-    const showNarration =
-        !transfer && !location && narration.length > 0 && dialogue.length > 0
+    const showNarration = !transfer && !location && narration.length > 0 && dialogue.length > 0
     const bubbleColor = transfer
         ? '#A65F22'
         : location
           ? color.neutral._300
           : entry.is_user
             ? color.primary._400
-            : color.neutral._200
+            : withAlpha(color.neutral._200, 'DD')
     const bubbleBorderColor = transfer
         ? '#E3A153'
         : location
@@ -92,81 +90,81 @@ const ChatBubble: React.FC<ChatTextProps> = ({
                     </Text>
                 )}
                 <Pressable
-                onPress={() => {
-                    setShowOptions(nowGenerating ? undefined : entry.id)
-                }}
-                style={{
-                    backgroundColor: bubbleColor,
-                    borderColor: bubbleBorderColor,
-                    borderWidth: 1,
-                    marginBottom: showSwipe ? 0 : 6,
-                    paddingVertical: location ? 6 : spacing.m,
-                    paddingHorizontal: spacing.l,
-                    minHeight: 40,
-                    borderRadius: 14,
-                    borderLeftWidth: entry.is_user ? 1 : 3,
-                    borderRightWidth: entry.is_user ? 3 : 1,
-                    shadowColor: color.shadow,
-                    boxShadow: [
-                        {
-                            offsetX: 0,
-                            offsetY: 3,
-                            spreadDistance: 0,
-                            color: color.shadow,
-                            blurRadius: 12,
-                        },
-                    ],
-                }}>
-                {transfer ? (
-                    <TransferMessage transfer={transfer} />
-                ) : location ? (
-                    <LocationMessage location={location} />
-                ) : isLastMessage ? (
-                    <ChatTextLast
-                        nowGenerating={nowGenerating}
-                        swipe={swipe}
-                        isUser={entry.is_user}
-                        variant="dialogue"
-                    />
-                ) : (
-                    <ChatText
-                        isUser={entry.is_user}
-                        swipeText={swipe.swipe}
-                        variant="dialogue"
-                    />
-                )}
-                <ChatAttachments entry={entry} />
-                <View
+                    onPress={() => {
+                        setShowOptions(nowGenerating ? undefined : entry.id)
+                    }}
                     style={{
-                        flexDirection: 'row',
+                        backgroundColor: bubbleColor,
+                        borderColor: bubbleBorderColor,
+                        borderWidth: 1,
+                        marginBottom: showSwipe ? 0 : 6,
+                        paddingVertical: location ? 6 : spacing.m,
+                        paddingHorizontal: spacing.l,
+                        minHeight: 40,
+                        borderRadius: 20,
+                        borderLeftWidth: 1,
+                        borderRightWidth: 1,
+                        shadowColor: color.shadow,
+                        boxShadow: [
+                            {
+                                offsetX: 0,
+                                offsetY: 3,
+                                spreadDistance: 0,
+                                color: color.shadow,
+                                blurRadius: 12,
+                            },
+                        ],
                     }}>
-                    {showTPS && appMode === 'local' && timings && (
-                        <Text
-                            style={{
-                                color: color.text._500,
-                                fontWeight: '300',
-                                textAlign: 'right',
-                                fontSize: fontSize.s,
-                            }}>
-                            {t('chat.bubble.promptSpeed', {
-                                tokens: getFiniteValue(timings.prompt_per_second),
-                                seconds: getFiniteValue(timings.prompt_ms / 1000),
-                            })}
-                            {t('chat.bubble.textGenerationSpeed', {
-                                tokens: getFiniteValue(timings.predicted_per_second),
-                                seconds: getFiniteValue(timings.predicted_ms / 1000),
-                            })}
-                        </Text>
+                    {transfer ? (
+                        <TransferMessage transfer={transfer} />
+                    ) : location ? (
+                        <LocationMessage location={location} />
+                    ) : isLastMessage ? (
+                        <ChatTextLast
+                            nowGenerating={nowGenerating}
+                            swipe={swipe}
+                            isUser={entry.is_user}
+                            variant="dialogue"
+                        />
+                    ) : (
+                        <ChatText
+                            isUser={entry.is_user}
+                            swipeText={swipe.swipe}
+                            variant="dialogue"
+                        />
                     )}
+                    <ChatAttachments entry={entry} />
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                        }}>
+                        {showTPS && appMode === 'local' && timings && (
+                            <Text
+                                style={{
+                                    color: color.text._500,
+                                    fontWeight: '300',
+                                    textAlign: 'right',
+                                    fontSize: fontSize.s,
+                                }}>
+                                {t('chat.bubble.promptSpeed', {
+                                    tokens: getFiniteValue(timings.prompt_per_second),
+                                    seconds: getFiniteValue(timings.prompt_ms / 1000),
+                                })}
+                                {t('chat.bubble.textGenerationSpeed', {
+                                    tokens: getFiniteValue(timings.predicted_per_second),
+                                    seconds: getFiniteValue(timings.predicted_ms / 1000),
+                                })}
+                            </Text>
+                        )}
 
-                    <ChatQuickActions
-                        nowGenerating={nowGenerating}
-                        isLastMessage={isLastMessage}
-                        entryId={entry.id}
-                        isUser={entry.is_user}
-                        swipe={swipe}
-                    />
-                </View>
+                        <ChatQuickActions
+                            nowGenerating={nowGenerating}
+                            isLastMessage={isLastMessage}
+                            entryId={entry.id}
+                            isUser={entry.is_user}
+                            swipe={swipe}
+                        />
+                    </View>
                 </Pressable>
             </View>
             {showSwipe && (

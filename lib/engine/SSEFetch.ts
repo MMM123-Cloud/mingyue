@@ -1,6 +1,7 @@
 import { fetch } from 'expo/fetch'
 
 import { Logger } from '@lib/state/Logger'
+import { StreamParser } from './StreamParser'
 type SSEValues = {
     endpoint: string
     method: 'POST' | 'GET'
@@ -11,6 +12,7 @@ type SSEValues = {
 export class SSEFetch {
     private abortController: AbortController = new AbortController()
     private decoder = new TextDecoder()
+    private parser = new StreamParser()
     private onEvent = (data: string) => {}
     private onError = () => {}
     private onClose = () => {}
@@ -18,6 +20,7 @@ export class SSEFetch {
     private cancelled = false
     public abort() {
         try {
+            this.cancelled = true
             this.abortController.abort()
         } catch {
         } finally {
@@ -32,6 +35,8 @@ export class SSEFetch {
         this.abortController = new AbortController()
         const body = values.method === 'POST' ? { body: values.body } : {}
         this.cancelled = false
+        this.decoder = new TextDecoder()
+        this.parser = new StreamParser()
         try {
             const res = await fetch(values.endpoint, {
                 signal: this.abortController.signal,
@@ -39,32 +44,35 @@ export class SSEFetch {
                 headers: values.headers,
                 ...body,
             })
-            if (res.status !== 200 || !res.body) {
+            if (!res.ok || !res.body) {
                 Logger.error('Status ' + res.status)
-                Logger.error(await res.text())
+                // Do not log response bodies which may contain credentials or private prompts.
                 return this.onError()
             }
             const reader = res.body.getReader()
             this.closeStream = () => {
                 try {
-                    reader.cancel()
+                    void reader.cancel().catch(() => undefined)
                     this.cancelled = true
                 } catch {}
             }
             while (true) {
                 const { value, done } = await reader.read()
-                if (done || this.cancelled) break
-
-                const data = this.decoder.decode(value)
-                const output = parseSSE(data)
-                output.forEach((item) => this.onEvent(item))
+                if (this.cancelled) break
+                const data = this.decoder.decode(value, { stream: !done })
+                this.parser.push(data, done).forEach((item) => this.onEvent(item))
+                if (done) break
             }
         } catch (e) {
             if (this.abortController.signal.aborted) {
                 Logger.debug('Abort caught')
             }
-            Logger.error('Request Failed: ' + e)
+            if (!this.abortController.signal.aborted) {
+                Logger.error('Request Failed: ' + e)
+                this.onError()
+            }
         } finally {
+            this.closeStream()
             this.onClose()
         }
     }
@@ -80,28 +88,4 @@ export class SSEFetch {
     public setOnClose(callback: () => void) {
         this.onClose = callback
     }
-}
-
-function parseSSE(message: string) {
-    const output: string[] = []
-    const lines = message.split(/\n/)
-    for (const line of lines) {
-        // For some APIs like Ollama, they use a ndjson stream
-        if (line.startsWith('{')) {
-            try {
-                JSON.parse(line)
-                output.push(line)
-            } catch {
-                continue
-            }
-        }
-        const colonIndex = line.indexOf(':')
-        if (colonIndex === 0) continue
-        const field = colonIndex > 0 ? line.slice(0, colonIndex).trim() : line.trim()
-        const value = colonIndex > 0 ? line.slice(colonIndex + 1).trim() : ''
-        if (field !== 'data' || value.startsWith('[DONE]')) continue
-        output.push(value)
-    }
-
-    return output
 }

@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router'
 import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import {
     BackHandler,
-    Dimensions,
+    useWindowDimensions,
     GestureResponderEvent,
     LayoutChangeEvent,
     LayoutRectangle,
@@ -80,6 +80,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     onLongPress,
     delayLongPress,
     longPress,
+    style,
+    accessibilityLabel,
 }) => {
     const [idRef] = useState(() => {
         // eslint-disable-next-line i18next/no-literal-string
@@ -133,7 +135,19 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
         <>
             <TouchableOpacity
                 activeOpacity={0.5}
-                style={{ opacity: isOpen ? 0.5 : 1 }}
+                accessibilityRole="button"
+                accessibilityLabel={accessibilityLabel ?? (children ? undefined : '更多操作')}
+                accessibilityState={{ disabled: !!disabled, expanded: isOpen }}
+                style={[
+                    !children && {
+                        minWidth: 48,
+                        minHeight: 48,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    },
+                    { opacity: isOpen ? 0.5 : 1 },
+                    style,
+                ]}
                 ref={triggerRef}
                 onPressIn={(event) => {
                     if (longPress) return
@@ -246,7 +260,7 @@ const MenuContent = ({
     const styles = useStyles()
     const insets = useSafeAreaInsets()
 
-    const { width: screenWidth, height: screenHeight } = Dimensions.get('window')
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions()
 
     const [menuSize, setMenuSize] = useState({ width: 0, height: 0 })
 

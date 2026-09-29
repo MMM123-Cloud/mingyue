@@ -32,8 +32,8 @@ type SimplePreset = 'saver' | 'balanced' | 'ultra'
 
 const simplePresets: { label: string; value: SimplePreset }[] = [
     { label: '省电', value: 'saver' },
-    { label: '推荐', value: 'balanced' },
-    { label: '最强', value: 'ultra' },
+    { label: '均衡', value: 'balanced' },
+    { label: '长对话', value: 'ultra' },
 ]
 
 const ModelSettings: React.FC<ModelSettingsProp> = ({ modelImporting, modelLoading, exit }) => {
@@ -73,7 +73,7 @@ const ModelSettings: React.FC<ModelSettingsProp> = ({ modelImporting, modelLoadi
             gpu_layers: 0,
             ctx_shift: true,
         }
-        setConfig({ ...config, ...values })
+        setConfig({ ...config, ...values, devices: [] })
     }
 
     const [kvSize, setKVSize] = useState(0)

@@ -1,8 +1,8 @@
-import { localDownload } from '@vali98/react-native-fs'
 import { getDocumentAsync } from 'expo-document-picker'
 import { Directory, File, FileMode, Paths } from 'expo-file-system'
 
 import { Logger } from '../state/Logger'
+import { downloadLocalFile } from './Download'
 
 export const AppDirectory = {
     ModelPath: `${Paths.document.uri}models/`,
@@ -32,10 +32,9 @@ export namespace FileUtils {
         filename: string,
         encoding: 'base64' | `utf8`
     ) => {
-        new File(Paths.cache, filename).write(data, { encoding })
-        await localDownload((Paths.cache.uri + filename).replace('file://', '')).catch((e) =>
-            Logger.error('Failed to download: ' + e)
-        )
+        const file = new File(Paths.cache, filename)
+        file.write(data, { encoding })
+        await downloadLocalFile(file.uri).catch((e) => Logger.error('Failed to download: ' + e))
     }
 
     export const pickText = async (params: { type?: string } = {}): Promise<PickerResult> => {
@@ -83,10 +82,9 @@ export const saveStringToDownload = async (
     filename: string,
     encoding: 'base64' | `utf8`
 ) => {
-    new File(Paths.cache, filename).write(data, { encoding })
-    await localDownload((Paths.cache.uri + filename).replace('file://', '')).catch((e) =>
-        Logger.error('Failed to download: ' + e)
-    )
+    const file = new File(Paths.cache, filename)
+    file.write(data, { encoding })
+    await downloadLocalFile(file.uri).catch((e) => Logger.error('Failed to download: ' + e))
 }
 
 type PickerResult = { success: false } | { success: true; data: string }
@@ -168,7 +166,7 @@ export const directoryExists = (path: string) => {
 
 export const copyFile = async ({ from, to }: { from: string; to: string }) => {
     try {
-        new File(from).copy(new File(to))
+        await new File(from).copy(new File(to))
         return true
     } catch (e) {
         Logger.error('Failed to copy: ' + e)

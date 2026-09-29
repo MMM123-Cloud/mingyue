@@ -29,6 +29,7 @@ import { useDeveloperModeStore } from '@lib/state/DeveloperMode'
 import { useChatInputTextStore } from '@lib/state/components/ChatInput'
 import { Logger } from '@lib/state/Logger'
 import { useWalletStore } from '@lib/state/Wallet'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 import ChatOptions from './ChatInputOptions'
@@ -225,7 +226,7 @@ const ChatInput = () => {
                 bottom: 8,
                 paddingVertical: spacing.sm,
                 paddingHorizontal: spacing.sm,
-                backgroundColor: color.neutral._100 + 'e6',
+                backgroundColor: withAlpha(color.neutral._100, 'e6'),
                 borderWidth: 1,
                 borderColor: color.neutral._300,
                 boxShadow: [

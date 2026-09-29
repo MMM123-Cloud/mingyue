@@ -1,12 +1,13 @@
 import { drizzle } from 'drizzle-orm/expo-sqlite'
-import { bundledExtensions, openDatabaseSync } from 'expo-sqlite'
+import { openDatabaseSync } from 'expo-sqlite'
+
+import { loadVectorExtension } from '@lib/utils/VectorExtension'
 
 import * as schema from './schema'
 
 //deleteDatabaseAsync('db.db')
 export const sqliteDB = openDatabaseSync('db.db', { enableChangeListener: true })
-const extension = bundledExtensions['sqlite-vec']
-if (extension) sqliteDB.loadExtensionAsync(extension?.libPath, extension?.entryPoint)
+export const loadDatabaseExtensions = () => loadVectorExtension(sqliteDB)
 export const db = drizzle(sqliteDB, { schema })
 
 export type TableNames = {
@@ -15,4 +16,4 @@ export type TableNames = {
         : never
 }[keyof typeof schema]
 
-sqliteDB.execAsync('PRAGMA foreign_keys = ON;')
+sqliteDB.execSync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;')

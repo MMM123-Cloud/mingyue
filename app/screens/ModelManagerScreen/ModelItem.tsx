@@ -38,15 +38,18 @@ const ModelItem: React.FC<ModelItemProps> = ({
     const { color } = Theme.useTheme()
     const [showMMPROJSelector, setShowMMPROJSelector] = useState(false)
     const [showInfo, setShowInfo] = useState(false)
-    const { loadModel, unloadModel, loadMmproj, modelId, mmprojId } = Llama.useLlamaModelStore(
-        useShallow((state) => ({
-            loadMmproj: state.loadMmproj,
-            loadModel: state.load,
-            unloadModel: state.unload,
-            modelId: state.model?.id,
-            mmprojId: state.mmproj?.id,
-        }))
-    )
+    const { loadModel, unloadModel, loadMmproj, modelId, mmprojId, loading, generating } =
+        Llama.useLlamaModelStore(
+            useShallow((state) => ({
+                loadMmproj: state.loadMmproj,
+                loadModel: state.load,
+                unloadModel: state.unload,
+                modelId: state.model?.id,
+                mmprojId: state.mmproj?.id,
+                loading: state.loading,
+                generating: state.generating,
+            }))
+        )
 
     const maybeClearLastLoaded = Llama.useLlamaPreferencesStore(
         useShallow((state) => state.maybeClearLastLoaded)
@@ -100,14 +103,12 @@ const ModelItem: React.FC<ModelItemProps> = ({
     const isMMPROJ = Model.isMMPROJ(item.architecture)
     const isLoaded = isMMPROJ ? mmprojId === item.id : modelId === item.id
 
-    const disable =
-        modelLoading || isInvalid || modelImporting || isMMPROJ
-            ? !modelId || isLoaded
-            : modelId !== undefined
-    const disableEdit = isLoaded || modelLoading || isInvalid
-    const disableDelete = isLoaded || modelLoading
+    const unavailable = modelLoading || modelImporting || loading || generating
+    const disable = unavailable || isInvalid || (isMMPROJ ? !modelId || isLoaded : false)
+    const disableEdit = isLoaded || unavailable || isInvalid
+    const disableDelete = isLoaded || unavailable
 
-    const loadToggle = isLoaded ? modelLoading || modelImporting : disable
+    const loadToggle = isLoaded ? unavailable : disable
 
     const mmprojName =
         mmprojList.filter((e) => e.id === item.mmprojLink?.mmproj_id)?.[0]?.name ?? undefined
@@ -177,6 +178,7 @@ const ModelItem: React.FC<ModelItemProps> = ({
 
             <View style={styles.buttonContainer}>
                 <ContextMenu
+                    accessibilityLabel={`模型操作 ${item.name}`}
                     disabled={disableEdit}
                     triggerIcon="edit"
                     triggerStyle={{ color: disableEdit ? color.text._700 : color.text._400 }}
@@ -249,25 +251,39 @@ const ModelItem: React.FC<ModelItemProps> = ({
 
                 {!isMMPROJ && (
                     <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel={`${isLoaded ? '卸载' : '加载'}模型 ${item.name}`}
+                        accessibilityState={{ disabled: loadToggle }}
+                        style={{
+                            minHeight: 48,
+                            minWidth: 64,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                        }}
                         disabled={loadToggle}
                         onPress={async () => {
-                            if (isLoaded) {
-                                await unloadModel()
-                                return
-                            }
                             setModelLoading(true)
-                            await loadModel(item).catch((e) => {
-                                Logger.errorToast(t('model.toast.failedtoload'), `${e}`)
-                            })
-                            if (item.mmprojLink) {
-                                const [mmprojModel] = mmprojList.filter(
-                                    (a) => a.id === item.mmprojLink?.mmproj_id
-                                )
-                                if (mmprojModel) {
-                                    await loadMmproj(mmprojModel)
+                            try {
+                                if (isLoaded) {
+                                    await unloadModel()
+                                    return
                                 }
+                                await loadModel(item)
+                                if (
+                                    item.mmprojLink &&
+                                    Llama.useLlamaModelStore.getState().model?.id === item.id
+                                ) {
+                                    const mmprojModel = mmprojList.find(
+                                        (a) => a.id === item.mmprojLink?.mmproj_id
+                                    )
+                                    if (mmprojModel) await loadMmproj(mmprojModel)
+                                }
+                            } catch (error) {
+                                Logger.errorToast(t('model.toast.failedtoload'), error)
+                            } finally {
+                                setModelLoading(false)
                             }
-                            setModelLoading(false)
                         }}>
                         <AntDesign
                             name={isLoaded ? 'close-circle' : 'play-circle'}
@@ -280,6 +296,13 @@ const ModelItem: React.FC<ModelItemProps> = ({
                                       : color.primary._500
                             }
                         />
+                        <Text
+                            style={{
+                                fontSize: 12,
+                                color: loadToggle ? color.text._600 : color.primary._700,
+                            }}>
+                            {isLoaded ? '卸载' : '加载'}
+                        </Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -296,7 +319,7 @@ const useStyles = () => {
         modelContainer: {
             borderRadius: spacing.l,
             paddingVertical: spacing.l,
-            paddingHorizontal: spacing.xl2,
+            paddingHorizontal: spacing.l,
             backgroundColor: color.neutral._200,
             minHeight: 64,
             columnGap: 12,
@@ -337,7 +360,7 @@ const useStyles = () => {
         buttonContainer: {
             flexDirection: 'row',
             alignItems: 'center',
-            columnGap: spacing.xl2,
+            columnGap: 2,
         },
     })
 }

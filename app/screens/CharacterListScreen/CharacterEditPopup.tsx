@@ -76,6 +76,7 @@ const CharacterEditPopup: React.FC<CharacterEditPopupProps> = ({
             router.push('/screens/ChatScreen')
         } catch (error) {
             Logger.errorToast(t('character.list.errors.load', { error }))
+        } finally {
             setNowLoading(false)
         }
     }

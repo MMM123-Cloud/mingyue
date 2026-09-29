@@ -17,6 +17,7 @@ type DirectChatAPIParams = {
     systemPrompt: string
     history: DirectChatMessage[]
     onToken: (token: string) => void
+    signal?: AbortSignal
 }
 
 const buildTextPrompt = (
@@ -49,6 +50,7 @@ export const generateDirectChatAPI = async ({
     systemPrompt,
     history,
     onToken,
+    signal,
 }: DirectChatAPIParams) => {
     const { activeIndex, values, getTemplates } = APIManager.useConnectionsStore.getState()
     const apiValues = values[activeIndex]
@@ -118,10 +120,15 @@ export const generateDirectChatAPI = async ({
     await new Promise<void>((resolve, reject) => {
         const sse = new SSEFetch()
         let settled = false
+        const abort = () => {
+            sse.abort()
+            finish()
+        }
 
         const finish = (error?: Error) => {
             if (settled) return
             settled = true
+            signal?.removeEventListener('abort', abort)
             if (error) reject(error)
             else resolve()
         }
@@ -143,6 +150,11 @@ export const generateDirectChatAPI = async ({
         })
         sse.setOnError(() => finish(new Error('API 流式连接失败')))
         sse.setOnClose(() => finish())
+        if (signal?.aborted) {
+            finish()
+            return
+        }
+        signal?.addEventListener('abort', abort, { once: true })
         void sse.start({
             endpoint: apiValues.endpoint,
             body,

@@ -77,7 +77,9 @@ const buildLocalPayload = async () => {
     }
     const reasoning = mmkv.getBoolean(AppSettings.ShowReasoning)
     let thinkTags = {}
-    const localPreset: LlamaConfig = Llama.useLlamaPreferencesStore.getState().config
+    const localPreset: LlamaConfig =
+        Llama.useLlamaModelStore.getState().runtime ??
+        Llama.useLlamaPreferencesStore.getState().config
     let prompt: undefined | string = undefined
     let mediaPaths: string[] = []
     const context = Llama.useLlamaModelStore.getState().context
@@ -311,8 +313,10 @@ const runLocalCompletion = async (
         'g'
     )
 
-    // llama.rn reuses KV state between calls. Clear it before each reply so a
-    // stale cache cannot make the model repeat the previous answer.
+    // Never clear another screen's active native generation.
+    if (Llama.useLlamaModelStore.getState().generating) {
+        throw new Error('本地模型正在回复，请稍后重试。')
+    }
     try {
         await Llama.useLlamaModelStore.getState().context?.clearCache(false)
     } catch (e) {
@@ -354,7 +358,9 @@ const runLocalCompletion = async (
         stopGenerating()
     }
 
-    const engineData = Llama.useLlamaPreferencesStore.getState().config
+    const engineData =
+        Llama.useLlamaModelStore.getState().runtime ??
+        Llama.useLlamaPreferencesStore.getState().config
 
     await Llama.useLlamaModelStore
         .getState()
@@ -480,7 +486,9 @@ const obtainFields = async (): Promise<ContextBuilderParams | void> => {
             return
         }
 
-        const engineData = Llama.useLlamaPreferencesStore.getState().config
+        const engineData =
+            Llama.useLlamaModelStore.getState().runtime ??
+            Llama.useLlamaPreferencesStore.getState().config
         const samplers = SamplersManager.getCurrentSampler()
 
         const instructLength = engineData.context_length
@@ -504,11 +512,12 @@ const obtainFields = async (): Promise<ContextBuilderParams | void> => {
                 const tokenCount = activeSwipe.token_count ?? 0
                 if (tokenCount === 0 && activeSwipe.swipe.length > 0) {
                     // assume that token length hasnt been calculated
-                    const tokenCount = await Llama.useLlamaModelStore.getState().tokenLength(
+                    const measuredCount = await Llama.useLlamaModelStore.getState().tokenLength(
                         activeSwipe.swipe,
                         entry.attachments.map((item) => item.uri)
                     )
-                    Chats.db.mutate.updateSwipeTokenLength(activeSwipe.id, tokenCount)
+                    await Chats.db.mutate.updateSwipeTokenLength(activeSwipe.id, measuredCount)
+                    return measuredCount
                 }
 
                 return tokenCount

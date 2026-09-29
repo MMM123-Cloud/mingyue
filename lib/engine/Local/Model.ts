@@ -26,6 +26,7 @@ import {
 } from '@lib/utils/File'
 
 import { GGMLNameMap, GGMLType } from './GGML'
+import { matchedTokenPrefix } from './RuntimeConfig'
 
 export type ModelData = Omit<ModelDataType, 'id' | 'create_date' | 'last_modified'>
 export type ModelListQueryType = Omit<
@@ -75,7 +76,15 @@ export namespace Model {
         }).then(async (result) => {
             if (result.canceled) return
             const file = result.assets[0]
-            const name = file.name
+            if (!file.name.toLowerCase().endsWith(GGUF_EXTENSION)) {
+                Logger.warnToast('请选择 GGUF 模型文件。')
+                return
+            }
+            const existing = await getModelList()
+            const name = getUniqueModelFilename(
+                file.name,
+                new Set(existing.map((n) => n.toLowerCase()))
+            )
             const newdir = `${AppDirectory.ModelPath}${name}`
             Logger.infoToast(t('common.messages.importingFile'))
             let success = false
@@ -238,24 +247,24 @@ export namespace Model {
         const fileList = await getModelList()
 
         // cull missing models
-        if (Platform.OS === 'android')
-            // cull not required on iOS
-            modelList.forEach(async (item) => {
+        if (Platform.OS === 'android') {
+            for (const item of modelList) {
                 if (item.name === '' || !getModelExists(item.file_path)) {
                     Logger.warnToast(t('model.toast.modelMissingEntryDeleted', { name: item.name }))
                     await db.delete(model_data).where(eq(model_data.id, item.id))
                 }
-            })
+            }
+        }
 
         // refresh as some may have been deleted
         modelList = await db.query.model_data.findMany()
 
         // create data as migration step
-        fileList.forEach(async (item) => {
-            if (modelList.some((model_data) => model_data.file === item) || !item) return
+        for (const item of fileList) {
+            if (modelList.some((model_data) => model_data.file === item) || !item) continue
             Logger.info(`Creating Model Data for: ${item}`)
             await createModelData(item)
-        })
+        }
     }
 
     export const createModelData = async (filename: string, deleteOnFailure: boolean = false) => {
@@ -452,16 +461,9 @@ export namespace KV {
                 },
                 verifyKVCache: (tokens: number[]) => {
                     const cachedTokens = get().kvCacheTokens
-                    let matched = 0
-                    const [a, b] =
-                        cachedTokens.length <= tokens.length
-                            ? [cachedTokens, tokens]
-                            : [tokens, cachedTokens]
-                    a.forEach((v, i) => {
-                        if (v === b[i]) matched++
-                    })
+                    const matched = matchedTokenPrefix(cachedTokens, tokens)
                     return {
-                        match: matched === a.length,
+                        match: matched === Math.min(cachedTokens.length, tokens.length),
                         cachedLength: cachedTokens.length,
                         inputLength: tokens.length,
                         matchLength: matched,
@@ -496,6 +498,6 @@ export namespace KV {
             Logger.warn('No KV Cache found')
             return
         }
-        Logger.info(`Size of KV cache: ${Math.floor(data.size ?? 0 * 0.000001)} MB`)
+        Logger.info(`Size of KV cache: ${Math.floor((data.size ?? 0) * 0.000001)} MB`)
     }
 }

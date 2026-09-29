@@ -1,52 +1,53 @@
 import AntDesign from '@react-native-vector-icons/ant-design/static'
 import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator'
-import { SplashScreen } from 'expo-router'
-import { useEffect } from 'react'
+import { SplashScreen, usePathname } from 'expo-router'
+import { PropsWithChildren, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useMMKVBoolean } from 'react-native-mmkv'
 
 import ThemedButton from '@components/buttons/ThemedButton'
 import FirstRunNotice from '@components/views/FirstRunNotice'
-import HeaderTitle from '@components/views/HeaderTitle'
 import { db } from '@db/db'
 import { AppSettings } from '@lib/constants/GlobalValues'
 import useLocalAuth from '@lib/hooks/LocalAuth'
 import { Theme } from '@lib/theme/ThemeManager'
 import { loadChatOnInit, startupApp, useTextIntentFocus } from '@lib/utils/Startup'
-import CharacterList from '@screens/CharacterListScreen'
+import { useAppStateNotificationObserver } from '@lib/notifications/Notifications'
 
-import migrations from '../db/migrations/migrations'
+import migrations from '../../db/migrations/migrations'
 
 const useStartupRoutine = () => {
-    const { success, error } = useMigrations(db, migrations)
+    const { success, error: migrationError } = useMigrations(db, migrations)
     const { authorized, retry } = useLocalAuth()
-
-    useTextIntentFocus()
-
+    const [ready, setReady] = useState(false)
+    const [startupError, setStartupError] = useState<Error>()
     useEffect(() => {
-        if (authorized && success) {
-            loadChatOnInit()
+        if (!authorized || !success) return
+        let cancelled = false
+        void startupApp()
+            .then(() => {
+                if (cancelled) return
+                setReady(true)
+            })
+            .catch((error) => {
+                if (!cancelled)
+                    setStartupError(error instanceof Error ? error : new Error(String(error)))
+            })
+            .finally(() => {
+                void SplashScreen.hideAsync()
+            })
+        return () => {
+            cancelled = true
         }
     }, [authorized, success])
-
     useEffect(() => {
-        /**
-         * Startup Routine:
-         * - wait for useMigration success
-         * - startupApp() - creates defaults
-         */
-        if (success) {
-            startupApp()
-            SplashScreen.hideAsync()
-        }
-        if (error) SplashScreen.hideAsync()
-    }, [success, error])
-
-    return { authorized, retry, error, success }
+        if (migrationError) void SplashScreen.hideAsync()
+    }, [migrationError])
+    return { authorized, retry, error: migrationError ?? startupError, success: ready }
 }
 
-const MainHome = () => {
+const MainHome = ({ children }: PropsWithChildren) => {
     const { color } = Theme.useTheme()
     const styles = useStyles()
     const { authorized, retry, error, success } = useStartupRoutine()
@@ -54,7 +55,6 @@ const MainHome = () => {
     if (error)
         return (
             <View style={styles.centeredContainer}>
-                <HeaderTitle />
                 <Text style={styles.title}>{t('db.migrationerror.title')}</Text>
                 <Text style={styles.errorLog}>{error.message}</Text>
                 <Text style={styles.subtitle}>{t('db.migrationerror.description')}</Text>
@@ -74,7 +74,6 @@ const MainHome = () => {
     if (!authorized)
         return (
             <View style={[styles.centeredContainer, { rowGap: 60 }]}>
-                <HeaderTitle />
                 <AntDesign
                     name="lock"
                     size={120}
@@ -87,11 +86,16 @@ const MainHome = () => {
                 </TouchableOpacity>
             </View>
         )
-    if (success) return <CharacterList />
-    return <HeaderTitle />
+    if (success) return <ReadyRuntime>{children}</ReadyRuntime>
+    return (
+        <View style={styles.centeredContainer}>
+            <ActivityIndicator color={color.primary._700} />
+            <Text style={styles.subtitle}>正在准备明月…</Text>
+        </View>
+    )
 }
 
-const Home = () => {
+const AppBootstrap = ({ children }: PropsWithChildren) => {
     const [noticeAccepted, setNoticeAccepted] = useMMKVBoolean(AppSettings.InstallNoticeAccepted)
 
     useEffect(() => {
@@ -102,10 +106,22 @@ const Home = () => {
         return <FirstRunNotice onAccept={() => setNoticeAccepted(true)} />
     }
 
-    return <MainHome />
+    return <MainHome>{children}</MainHome>
 }
 
-export default Home
+const ReadyRuntime = ({ children }: PropsWithChildren) => {
+    useTextIntentFocus()
+    useAppStateNotificationObserver()
+    const path = usePathname()
+    const initialPath = useRef(path)
+    useEffect(() => {
+        // Navigation runs after the root stack mounts; deep links keep their destination.
+        if (initialPath.current === '/') void loadChatOnInit()
+    }, [])
+    return <>{children}</>
+}
+
+export default AppBootstrap
 
 const useStyles = () => {
     const { color, spacing, fontSize, borderWidth } = Theme.useTheme()
@@ -134,7 +150,7 @@ const useStyles = () => {
             paddingVertical: spacing.l,
             borderRadius: 12,
             margin: spacing.xl2,
-            backgroundColor: 'black',
+            backgroundColor: color.neutral._200,
         },
 
         buttonText: {

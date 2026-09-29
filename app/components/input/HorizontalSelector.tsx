@@ -1,10 +1,11 @@
 import MaterialIcons, {
     MaterialIconsIconName,
 } from '@react-native-vector-icons/material-icons/static'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Pressable, Text, View, ViewStyle } from 'react-native'
 import Animated, {
     Easing,
+    ReduceMotion,
     useAnimatedStyle,
     useSharedValue,
     withTiming,
@@ -48,21 +49,26 @@ const HorizontalSelector = <T,>({
         return animatedValues.value
     })
 
-    useEffect(() => {
+    const measureSelection = useCallback(() => {
         if (!viewRef.current) return
         viewRef.current.measure((x, y, width, height, pageX, pageY) => {
             animatedValues.value = withTiming(
                 {
-                    top: y,
-                    left: x,
+                    top: y + 2,
+                    left: x + 2,
                     width: width - 4,
                     height: height - 4,
                 },
-                { duration: initialRender.current ? 0 : 300, easing: Easing.out(Easing.ease) }
+                {
+                    duration: initialRender.current ? 0 : 180,
+                    easing: Easing.out(Easing.ease),
+                    reduceMotion: ReduceMotion.System,
+                }
             )
         })
         initialRender.current = false
-    }, [animatedValues, selected])
+    }, [animatedValues])
+    useEffect(measureSelection, [measureSelection, selected])
 
     return (
         <View style={[{ flex: 1 }, style]}>
@@ -78,21 +84,22 @@ const HorizontalSelector = <T,>({
             )}
 
             <View
+                onLayout={measureSelection}
+                accessibilityRole="radiogroup"
                 style={{
                     flex: style?.flex ?? 1,
                     flexDirection: 'row',
                     justifyContent: 'space-evenly',
-                    borderColor: color.primary._200,
-                    backgroundColor: color.neutral._100,
-                    borderWidth: 2,
-                    borderRadius: 8,
+                    backgroundColor: color.neutral._300,
+                    padding: 2,
+                    borderRadius: 26,
                 }}>
                 <Animated.View
                     style={[
                         {
                             position: 'absolute',
-                            backgroundColor: color.primary._300,
-                            borderRadius: 8,
+                            backgroundColor: color.primary._200,
+                            borderRadius: 22,
                         },
                         animatedStyle,
                     ]}
@@ -102,11 +109,18 @@ const HorizontalSelector = <T,>({
                     const isSelected = item.value === selected
                     return (
                         <Pressable
+                            accessibilityRole="radio"
+                            accessibilityLabel={item.label}
+                            accessibilityState={{ checked: isSelected }}
+                            onLayout={isSelected ? measureSelection : undefined}
                             ref={isSelected ? viewRef : null}
                             key={index}
                             onPress={() => onPress(item.value)}
                             style={{
                                 flex: 1,
+                                minHeight: 48,
+                                paddingHorizontal: 8,
+                                borderRadius: 24,
                                 paddingVertical: spacing.m,
                                 alignItems: 'center',
                                 flexDirection: 'row',

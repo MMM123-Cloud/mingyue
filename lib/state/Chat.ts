@@ -563,7 +563,7 @@ export namespace Chats {
                     where: eq(chatSwipes.id, chatSwipeId),
                 })
 
-                if (swipe?.entry_id) updateEntryModified(swipe.entry_id)
+                if (swipe?.entry_id) await updateEntryModified(swipe.entry_id)
             }
 
             export const updateSwipeResetLength = async (swipeId: number, length: number) => {
@@ -691,10 +691,11 @@ export namespace Chats {
                 const type = mimeType?.split('/')?.[0]
                 if (!name || !extension || !mimeType || !type || !validExtensionTypes(type)) return
                 const newURI = AppDirectory.Attachments + attachmentId + '.' + extension
-                copyFile({
+                const copied = await copyFile({
                     from: uri,
                     to: newURI,
                 })
+                if (!copied) throw new Error('附件复制失败，请重试。')
                 const [attachment] = await database
                     .insert(chatAttachments)
                     .values({

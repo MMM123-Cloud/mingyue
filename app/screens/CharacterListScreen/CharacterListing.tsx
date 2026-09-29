@@ -7,6 +7,7 @@ import Avatar from '@components/views/Avatar'
 import { AppSettings } from '@lib/constants/GlobalValues'
 import { Characters, CharInfo } from '@lib/state/Characters'
 import { CharacterSorter } from '@lib/state/CharacterSorter'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 import { getFriendlyTimeStamp } from '@lib/utils/Time'
 
@@ -95,13 +96,13 @@ const useStyles = () => {
     return StyleSheet.create({
         longButtonContainer: {
             flexDirection: 'row',
-            backgroundColor: color.neutral._200,
+            backgroundColor: withAlpha(color.neutral._200, 'B8'),
             borderWidth: 1,
-            borderColor: color.neutral._300,
-            borderRadius: borderRadius.l,
+            borderColor: withAlpha(color.neutral._400, '90'),
+            borderRadius: 22,
             flex: 1,
-            paddingVertical: spacing.m,
-            paddingHorizontal: spacing.l,
+            paddingVertical: spacing.xl,
+            paddingHorizontal: spacing.xl,
         },
 
         avatar: {
@@ -109,14 +110,14 @@ const useStyles = () => {
             height: 48,
             borderRadius: 14,
             backgroundColor: color.neutral._300,
-            borderColor: color.neutral._300,
+            borderColor: withAlpha(color.neutral._400, '90'),
             borderWidth: 1,
         },
 
         nametag: {
             flex: 1,
             fontSize: 16,
-            fontWeight: '500',
+            fontWeight: '600',
             color: color.text._100,
         },
 
@@ -131,7 +132,7 @@ const useStyles = () => {
 
         previewText: {
             marginTop: spacing.s,
-            color: color.text._500,
+            color: color.text._300,
             fontSize: 14,
         },
     })

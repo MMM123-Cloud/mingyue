@@ -40,7 +40,10 @@ const FirstRunNotice: React.FC<FirstRunNoticeProps> = ({ onAccept }) => {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-                <Image source={require('../../../assets/images/icon.png')} style={styles.icon} />
+                <Image
+                    source={require('../../../assets/images/liquid-icon.png')}
+                    style={styles.icon}
+                />
                 <View style={styles.headerText}>
                     <Text style={styles.title}>使用声明</Text>
                     <Text style={styles.subtitle}>首次使用前请阅读并确认</Text>

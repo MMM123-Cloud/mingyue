@@ -29,7 +29,8 @@ export const useBackgroundStore = create<BackgroundImageStateProps>()(
                     if (result.canceled) return
                     const uri = result.assets[0].uri
                     const name = result.assets[0].name
-                    copyFile({ from: uri, to: AppDirectory.Assets + name })
+                    const copied = await copyFile({ from: uri, to: AppDirectory.Assets + name })
+                    if (!copied) throw new Error('Background image could not be copied')
 
                     set({ image: name })
                     Logger.infoToast(t('common.messages.successfullyImported'))

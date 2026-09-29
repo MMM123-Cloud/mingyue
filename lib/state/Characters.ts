@@ -959,11 +959,12 @@ export namespace Characters {
                 let cacheLoc = ''
 
                 if (fileExists(imageDir)) {
-                    cacheLoc = imageCacheDir
-                    copyFile({
+                    const copied = await copyFile({
                         from: imageDir,
-                        to: cacheLoc,
+                        to: imageCacheDir,
                     })
+                    if (!copied) return false
+                    cacheLoc = imageCacheDir
                 }
 
                 const now = getNetworkNow()
@@ -971,10 +972,11 @@ export namespace Characters {
                 card.image_id = now
                 if (card.background_image) {
                     const backgroundId = getNetworkNow()
-                    await copyFile({
+                    const copied = await copyFile({
                         from: getImageDir(card.background_image),
                         to: getImageDir(backgroundId),
                     })
+                    if (!copied) return false
                     card.background_image = backgroundId
                 }
                 const cv2 = convertDBDataToCV2(card)
@@ -1068,10 +1070,11 @@ export namespace Characters {
     }
 
     export const copyImage = async (uri: string, imageID: number) => {
-        copyFile({
+        const copied = await copyFile({
             from: uri,
             to: getImageDir(imageID),
         })
+        if (!copied) throw new Error('Character image could not be copied')
     }
 
     export const convertDBDataToCV2 = (data: NonNullable<CharacterCardData>): CharacterCardV2 => {
@@ -1109,7 +1112,7 @@ export namespace Characters {
                 return
             }
 
-            await createCharacterFromV2JSON(card, uri)
+            return await createCharacterFromV2JSON(card, uri)
         } catch (e) {
             Logger.errorToast(t('character.editor.errors.createFailed'))
             Logger.error(`${e}`)
@@ -1201,12 +1204,17 @@ export namespace Characters {
             if (!fileExists(cardDefaultDir)) {
                 Logger.info('Importing default card.')
                 const [asset] = await Asset.loadAsync(require('./../../assets/models/aibot.raw'))
-                if (asset.localUri) copyFile({ from: asset.localUri, to: cardDefaultDir })
+                if (
+                    !asset.localUri ||
+                    !(await copyFile({ from: asset.localUri, to: cardDefaultDir }))
+                )
+                    throw new Error('Default character asset could not be copied')
             }
-            await createCharacterFromImage(cardDefaultDir)
+            return Boolean(await createCharacterFromImage(cardDefaultDir))
         } catch (e) {
             Logger.errorToast(t('settings.character.errors.failedToCreateDefaultCharacter'))
             Logger.error('Error: ' + e)
+            return false
         }
     }
 }

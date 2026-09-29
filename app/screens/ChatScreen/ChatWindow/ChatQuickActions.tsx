@@ -17,6 +17,7 @@ import { Chats, useInference } from '@lib/state/Chat'
 import { authorNoteEditorState } from '@lib/state/components/AuthorNotes'
 import { Logger } from '@lib/state/Logger'
 import { useTTSStore } from '@lib/state/TTS'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 import { useAuthorNoteState } from '../AuthorNote'
@@ -158,7 +159,7 @@ const ChatQuickActions: React.FC<ChatActionProps> = ({
                     borderRadius: 8,
                     borderWidth: 1,
                     borderColor: color.primary._500,
-                    backgroundColor: color.neutral._100 + 'cc',
+                    backgroundColor: withAlpha(color.neutral._100, 'cc'),
                     boxShadow: [
                         {
                             offsetX: 1,

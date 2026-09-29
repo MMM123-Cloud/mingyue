@@ -5,31 +5,31 @@ module.exports = {
         name: IS_DEV ? '明月 (DEV)' : '明月',
         newArchEnabled: true,
         slug: 'mingyue-ai',
-        version: '0.10.29',
+        version: '0.12.0',
         orientation: 'default',
-        icon: './assets/images/icon.png',
+        icon: './assets/images/liquid-icon.png',
         scheme: 'mingyue',
-        userInterfaceStyle: 'dark',
+        userInterfaceStyle: 'light',
         assetBundlePatterns: ['**/*'],
         ios: {
             icon: {
-                dark: './assets/images/ios-dark.png',
-                light: './assets/images/ios-light.png',
-                tinted: './assets/images/icon.png',
+                dark: './assets/images/liquid-icon.png',
+                light: './assets/images/liquid-icon.png',
+                tinted: './assets/images/liquid-icon.png',
             },
             supportsTablet: true,
-            package: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue',
+            package: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue.glass',
             bundleIdentifier: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue',
         },
         android: {
+            versionCode: 12000,
             adaptiveIcon: {
-                foregroundImage: './assets/images/adaptive-icon-foreground.png',
-                backgroundImage: './assets/images/adaptive-icon-background.png',
-                monochromeImage: './assets/images/adaptive-icon-foreground.png',
-                backgroundColor: '#000',
+                foregroundImage: './assets/images/liquid-icon-foreground.png',
+                monochromeImage: './assets/images/liquid-icon-foreground.png',
+                backgroundColor: '#F6F8FC',
             },
-            package: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue',
-            userInterfaceStyle: 'dark',
+            package: IS_DEV ? 'com.zjf20.mingyue.dev' : 'com.zjf20.mingyue.glass',
+            userInterfaceStyle: 'light',
             permissions: [
                 'android.permission.FOREGROUND_SERVICE',
                 'android.permission.WAKE_LOCK',
@@ -39,7 +39,7 @@ module.exports = {
         web: {
             bundler: 'metro',
             output: 'static',
-            favicon: './assets/images/adaptive-icon.png',
+            favicon: './assets/images/liquid-icon.png',
         },
         plugins: [
             [
@@ -65,15 +65,15 @@ module.exports = {
             [
                 'expo-splash-screen',
                 {
-                    backgroundColor: '#090B0A',
-                    image: './assets/images/adaptive-icon.png',
-                    imageWidth: 200,
+                    backgroundColor: '#F6F8FC',
+                    image: './assets/images/liquid-icon-foreground.png',
+                    imageWidth: 144,
                 },
             ],
             [
                 'expo-notifications',
                 {
-                    icon: './assets/images/notification.png',
+                    icon: './assets/images/liquid-icon-foreground.png',
                 },
             ],
             [
@@ -88,6 +88,7 @@ module.exports = {
             'expo-router',
             'expo-font',
             'expo-image',
+            './expo-build-plugins/nativebuild.plugin.js',
             './expo-build-plugins/bgactions.plugin.js',
             './expo-build-plugins/usercert.plugin.js',
             './expo-build-plugins/rnllama.plugin.js',
@@ -107,9 +108,6 @@ module.exports = {
         extra: {
             router: {
                 origin: false,
-            },
-            eas: {
-                projectId: 'd588a96a-5eb0-457a-85bc-e21acfdc60e9',
             },
         },
     },

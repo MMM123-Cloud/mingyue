@@ -1,0 +1,193 @@
+diff --git a/node_modules/expo-blur/android/src/main/java/expo/modules/blur/BlurModule.kt b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/BlurModule.kt
+index 837b7fe..f84b801 100644
+--- a/node_modules/expo-blur/android/src/main/java/expo/modules/blur/BlurModule.kt
++++ b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/BlurModule.kt
+@@ -32,8 +32,17 @@ class BlurModule : Module() {
+         view.setBlurMethod(blurMethod)
+       }
+ 
++      Prop("liquidGlassStrength") { view: ExpoBlurView, strength: Float ->
++        view.liquidGlassStrength = strength.coerceIn(0f, 1f)
++      }
++
++      Prop("liquidGlassRadius") { view: ExpoBlurView, radius: Float ->
++        view.liquidGlassRadius = radius.coerceAtLeast(0f)
++      }
++
+       OnViewDidUpdateProps { view: ExpoBlurView ->
+         view.applyTint()
++        view.applyLiquidGlass()
+       }
+     }
+ 
+diff --git a/node_modules/expo-blur/android/src/main/java/expo/modules/blur/ExpoBlurView.kt b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/ExpoBlurView.kt
+index 71344c8..385e3dd 100644
+--- a/node_modules/expo-blur/android/src/main/java/expo/modules/blur/ExpoBlurView.kt
++++ b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/ExpoBlurView.kt
+@@ -30,6 +30,10 @@ class ExpoBlurView(context: Context, appContext: AppContext) : ExpoView(context,
+   private var blurConfiguration = BlurViewConfiguration.NONE
+   private var blurTargetId: Int? = null
+   private var blurTarget: ExpoBlurTargetView? = null
++  internal var liquidGlassStrength = 0f
++  internal var liquidGlassRadius = 24f
++  private var liquidLens: LiquidLens? = null
++  private var lensUnavailable = false
+ 
+   private val blurView = BlurView(context).also {
+     it.layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+@@ -52,6 +56,28 @@ class ExpoBlurView(context: Context, appContext: AppContext) : ExpoView(context,
+     configureBlurView()
+   }
+ 
++  override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
++    super.onLayout(changed, left, top, right, bottom)
++    applyLiquidGlass()
++  }
++
++  fun applyLiquidGlass() {
++    if (Build.VERSION.SDK_INT < 33) return
++    if (liquidGlassStrength <= 0f || blurMethod == BlurMethod.NONE || blurTarget == null) {
++      blurView.setRenderEffect(null)
++      return
++    }
++    if (blurView.width <= 0 || blurView.height <= 0 || lensUnavailable) return
++    try {
++      val lens = liquidLens ?: LiquidLens().also { liquidLens = it }
++      lens.apply(blurView, liquidGlassStrength, liquidGlassRadius, !tint.value.contains("dark", true))
++    } catch (error: Exception) {
++      lensUnavailable = true
++      blurView.setRenderEffect(null)
++      android.util.Log.w("MingYueGlass", "Lens unavailable; retaining native blur", error)
++    }
++  }
++
+   fun setBlurRadius(radius: Float) {
+     blurRadius = radius
+ 
+diff --git a/node_modules/expo-blur/android/src/main/java/expo/modules/blur/LiquidLens.kt b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/LiquidLens.kt
+new file mode 100644
+index 0000000..f813da0
+--- /dev/null
++++ b/node_modules/expo-blur/android/src/main/java/expo/modules/blur/LiquidLens.kt
+@@ -0,0 +1,56 @@
++package expo.modules.blur
++
++import android.graphics.RenderEffect
++import android.graphics.RuntimeShader
++import android.view.View
++import androidx.annotation.RequiresApi
++
++/** MingYue: a static optical lens on the blurred background, never on text. */
++@RequiresApi(33)
++internal class LiquidLens {
++  private val shader = RuntimeShader("""
++    uniform shader content;
++    uniform float2 resolution;
++    uniform float radius;
++    uniform float density;
++    uniform float strength;
++    uniform float light;
++
++    float sdRoundBox(float2 p, float2 halfSize, float r) {
++      float2 q = abs(p) - halfSize + float2(r);
++      return length(max(q, float2(0.0))) + min(max(q.x, q.y), 0.0) - r;
++    }
++
++    half4 main(float2 coord) {
++      float2 halfSize = resolution * 0.5;
++      float r = min(radius, min(halfSize.x, halfSize.y));
++      float2 p = coord - halfSize;
++      float d = sdRoundBox(p, halfSize, r);
++      float stepSize = max(density, 1.0);
++      float2 gradient = float2(
++        sdRoundBox(p + float2(stepSize, 0.0), halfSize, r) - sdRoundBox(p - float2(stepSize, 0.0), halfSize, r),
++        sdRoundBox(p + float2(0.0, stepSize), halfSize, r) - sdRoundBox(p - float2(0.0, stepSize), halfSize, r)
++      );
++      float2 normal = gradient / max(length(gradient), 0.001);
++      float edgeWidth = max(min(min(halfSize.x, halfSize.y) * 0.6, 18.0 * density), 1.0);
++      float edge = pow(clamp(1.0 + d / edgeWidth, 0.0, 1.0), 2.0);
++      float2 samplePoint = clamp(coord - normal * edge * 9.0 * density * strength, float2(0.5), resolution - float2(0.5));
++      half4 color = content.eval(samplePoint);
++      float rim = exp(-abs(d + density) / max(density * 1.2, 0.5));
++      float shine = rim * max(dot(normal, float2(-0.6, -0.8)), 0.0) * 0.32 * strength;
++      float shade = rim * max(dot(normal, float2(0.6, 0.8)), 0.0) * 0.05 * strength * light;
++      half3 rgb = clamp(color.rgb + half3(shine - shade) * color.a, half3(0.0), half3(color.a));
++      return half4(rgb, color.a);
++    }
++  """.trimIndent())
++
++  fun apply(view: View, strength: Float, cornerRadius: Float, light: Boolean) {
++    val density = view.resources.displayMetrics.density
++    shader.setFloatUniform("resolution", view.width.toFloat(), view.height.toFloat())
++    shader.setFloatUniform("radius", cornerRadius * density)
++    shader.setFloatUniform("density", density)
++    shader.setFloatUniform("strength", strength.coerceIn(0f, 1f))
++    shader.setFloatUniform("light", if (light) 1f else 0f)
++    view.setRenderEffect(RenderEffect.createRuntimeShaderEffect(shader, "content"))
++  }
++}
+diff --git a/node_modules/expo-blur/build/BlurView.js b/node_modules/expo-blur/build/BlurView.js
+index 427247c..228c7bf 100644
+--- a/node_modules/expo-blur/build/BlurView.js
++++ b/node_modules/expo-blur/build/BlurView.js
+@@ -54,8 +54,8 @@ export default class BlurView extends React.Component {
+         return providedMethod ?? 'none';
+     }
+     render() {
+-        const { tint = 'default', intensity = 50, blurReductionFactor = 4, style, children, ...props } = this.props;
+-        return (_jsxs(View, { ...props, style: [styles.container, style], children: [_jsx(NativeBlurView, { blurTargetId: this.state.blurTargetId, ref: this.blurViewRef, tint: tint, intensity: intensity, blurReductionFactor: blurReductionFactor, blurMethod: this._getBlurMethod(), style: StyleSheet.absoluteFill }), children] }));
++        const { tint = 'default', intensity = 50, blurReductionFactor = 4, style, children, liquidGlassStrength = 0, liquidGlassRadius = 24, ...props } = this.props;
++        return (_jsxs(View, { ...props, style: [styles.container, style], children: [_jsx(NativeBlurView, { blurTargetId: this.state.blurTargetId, ref: this.blurViewRef, tint: tint, liquidGlassStrength, liquidGlassRadius, intensity: intensity, blurReductionFactor: blurReductionFactor, blurMethod: this._getBlurMethod(), style: StyleSheet.absoluteFill }), children] }));
+     }
+ }
+ const styles = StyleSheet.create({
+diff --git a/node_modules/expo-blur/build/BlurView.types.d.ts b/node_modules/expo-blur/build/BlurView.types.d.ts
+index 0b48f68..e1a7cc3 100644
+--- a/node_modules/expo-blur/build/BlurView.types.d.ts
++++ b/node_modules/expo-blur/build/BlurView.types.d.ts
+@@ -19,6 +19,8 @@ export type BlurMethod = 'none' | 'dimezisBlurView' | 'dimezisBlurViewSdk31Plus'
+  */
+ export type ExperimentalBlurMethod = BlurMethod;
+ export type BlurViewProps = {
++    liquidGlassStrength?: number;
++    liquidGlassRadius?: number;
+     /**
+      * A ref to a BlurTargetView, which this BlurView will blur as its background.
+      *
+diff --git a/node_modules/expo-blur/src/BlurView.tsx b/node_modules/expo-blur/src/BlurView.tsx
+index b37ba33..9104e4f 100644
+--- a/node_modules/expo-blur/src/BlurView.tsx
++++ b/node_modules/expo-blur/src/BlurView.tsx
+@@ -82,6 +82,8 @@ export default class BlurView extends React.Component<BlurViewProps, BlurViewSta
+       blurReductionFactor = 4,
+       style,
+       children,
++      liquidGlassStrength = 0,
++      liquidGlassRadius = 24,
+       ...props
+     } = this.props;
+     return (
+@@ -90,6 +92,8 @@ export default class BlurView extends React.Component<BlurViewProps, BlurViewSta
+           blurTargetId={this.state.blurTargetId}
+           ref={this.blurViewRef}
+           tint={tint}
++          liquidGlassStrength={liquidGlassStrength}
++          liquidGlassRadius={liquidGlassRadius}
+           intensity={intensity}
+           blurReductionFactor={blurReductionFactor}
+           blurMethod={this._getBlurMethod()}
+diff --git a/node_modules/expo-blur/src/BlurView.types.ts b/node_modules/expo-blur/src/BlurView.types.ts
+index b80d44a..03970f4 100644
+--- a/node_modules/expo-blur/src/BlurView.types.ts
++++ b/node_modules/expo-blur/src/BlurView.types.ts
+@@ -22,6 +22,10 @@ export type BlurMethod = 'none' | 'dimezisBlurView' | 'dimezisBlurViewSdk31Plus'
+ export type ExperimentalBlurMethod = BlurMethod;
+ 
+ export type BlurViewProps = {
++  /** MingYue Android 13+ background refraction; defaults to disabled. */
++  liquidGlassStrength?: number;
++  /** Optical surface corner radius in dp. */
++  liquidGlassRadius?: number;
+   /**
+    * A ref to a BlurTargetView, which this BlurView will blur as its background.
+    *

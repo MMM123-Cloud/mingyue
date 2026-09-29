@@ -8,6 +8,7 @@ import ThemedSwitch from '@components/input/ThemedSwitch'
 import { useLiveQueryJoined } from '@lib/hooks/LiveQueryJoined'
 import { AuthorNotes } from '@lib/state/AuthorNotes'
 import { authorNoteEditorState } from '@lib/state/components/AuthorNotes'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 type AuthorNoteItemProps = {
@@ -30,7 +31,7 @@ const AuthorNoteItem: React.FC<AuthorNoteItemProps> = ({ id }) => {
                 style={{
                     borderRadius: borderRadius.l,
                     height: 96,
-                    backgroundColor: color.neutral._200 + '55',
+                    backgroundColor: withAlpha(color.neutral._200, '55'),
                 }}
             />
         )
@@ -43,7 +44,7 @@ const AuthorNoteItem: React.FC<AuthorNoteItemProps> = ({ id }) => {
                 minHeight: 96,
                 paddingVertical: spacing.m,
                 paddingHorizontal: spacing.l,
-                backgroundColor: color.neutral._200 + '55',
+                backgroundColor: withAlpha(color.neutral._200, '55'),
             }}>
             <View
                 style={{

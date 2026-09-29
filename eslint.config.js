@@ -47,9 +47,17 @@ module.exports = defineConfig([
         },
     },
     {
-        files: ['app/**/*.{tsx,ts}'],
+        // Shared UI follows the same localization policy as route components.
+        files: ['app/**/*.{tsx,ts}', 'lib/ui/**/*.{tsx,ts}'],
         rules: {
             'i18next/no-literal-string': ['warn', i18nRules],
+        },
+    },
+    {
+        files: ['scripts/**/*.js', 'expo-build-plugins/**/*.js'],
+        languageOptions: {
+            sourceType: 'commonjs',
+            globals: { __dirname: 'readonly', __filename: 'readonly' },
         },
     },
 ])

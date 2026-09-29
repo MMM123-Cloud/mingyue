@@ -15,7 +15,6 @@ const HeaderTitle: React.FC<HeaderTitleProps> = ({ title = '', headerTitle = und
             options={{
                 title: title,
                 headerTitle: headerTitle,
-                animation: 'simple_push',
             }}
         />
     )

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Image, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native'
 import { useMMKVBoolean } from 'react-native-mmkv'
 
 import appConfig from '@appconfig'
@@ -29,10 +29,13 @@ const AboutScreen = () => {
 
     const version = t('about.versionPrefix') + appConfig.expo.version
     return (
-        <View style={styles.container}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
             <HeaderTitle title={t('common.navigation.about')} />
             <TouchableOpacity activeOpacity={0.8} onPress={updateCounter}>
-                <Image source={require('../../assets/images/icon.png')} style={styles.icon} />
+                <Image
+                    source={require('../../assets/images/liquid-icon.png')}
+                    style={styles.icon}
+                />
             </TouchableOpacity>
 
             <Text style={styles.titleText}>{t('common.brand.name')}</Text>
@@ -76,7 +79,7 @@ const AboutScreen = () => {
                 {t('about.support.label')}
             </Text>
             <SupportButton />
-        </View>
+        </ScrollView>
     )
 }
 
@@ -89,9 +92,10 @@ const useStyles = () => {
         container: {
             paddingHorizontal: spacing.xl3,
             paddingBottom: spacing.xl2,
+            paddingTop: spacing.xl2,
             justifyContent: 'center',
             alignItems: 'center',
-            flex: 1,
+            flexGrow: 1,
         },
         titleText: { color: color.text._100, fontSize: 32, marginTop: 16 },
         subtitleText: { color: color.text._400 },
@@ -99,9 +103,9 @@ const useStyles = () => {
         icon: {
             width: 120,
             height: 120,
-            backgroundColor: 'black',
+            backgroundColor: color.neutral._200,
 
-            borderRadius: 60,
+            borderRadius: 28,
         },
     })
 }

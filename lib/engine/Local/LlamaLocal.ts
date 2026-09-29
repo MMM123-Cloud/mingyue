@@ -7,6 +7,7 @@ import {
     RNLLAMA_MTMD_DEFAULT_MEDIA_MARKER,
 } from 'cui-llama.rn'
 import { t } from 'i18next'
+import { totalMemory } from 'expo-device'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -16,6 +17,7 @@ import { AppDirectory, fileExists, readableFileSize, writeBase64File } from '@li
 
 import { checkGGMLDeprecated } from './GGML'
 import { KV, Model } from './Model'
+import { runtimeConfig, estimatedModelMemory } from './RuntimeConfig'
 import { AppSettings, Global } from '../../constants/GlobalValues'
 import { Logger } from '../../state/Logger'
 import { createMMKVStorage, mmkv } from '../../storage/MMKV'
@@ -39,6 +41,9 @@ export type CompletionOutput = {
 
 export type LlamaState = {
     context: LlamaContext | undefined
+    runtime?: LlamaConfig
+    generating: boolean
+    loading: boolean
     model?: ModelDataType
     mmproj?: ModelDataType
     loadProgress: number
@@ -84,8 +89,19 @@ const sessionFile = `${AppDirectory.SessionPath}llama-session.bin`
 
 let activeModelLoad: Promise<void> | undefined
 let activeModelLoadId: number | undefined
+let activeModelUnload: Promise<void> | undefined
 let activeCompletion: Promise<void> | undefined
 let modelLoadGeneration = 0
+let loadedModelFd: string | undefined
+let loadedMmprojFd: string | undefined
+
+const closeModelDescriptors = async () => {
+    for (const fd of [loadedModelFd, loadedMmprojFd]) {
+        if (fd) await closeFd(fd).catch((error) => Logger.warn(`Closing model file: ${error}`))
+    }
+    loadedModelFd = undefined
+    loadedMmprojFd = undefined
+}
 
 const defaultConfig = {
     context_length: 2048,
@@ -94,36 +110,6 @@ const defaultConfig = {
     batch: 128,
     ctx_shift: true,
     devices: [],
-}
-
-const getFastRuntimeConfig = (model: ModelDataType, config: LlamaConfig): LlamaConfig => {
-    const source = `${model.name} ${model.file} ${model.params}`.toLowerCase()
-    const lightModel =
-        model.file_size <= 3 * 1024 ** 3 ||
-        /(?:^|[^0-9])(?:0[.]6|1[.]7|2|3|4)\s*b(?:[^a-z0-9]|$)/i.test(source)
-    const veryHeavyModel =
-        model.file_size >= 7 * 1024 ** 3 ||
-        /(?:^|[^0-9])(?:14|32|70)\s*b(?:[^a-z0-9]|$)/i.test(source)
-    const heavyModel =
-        veryHeavyModel ||
-        model.file_size >= 4 * 1024 ** 3 ||
-        /(?:^|[^0-9])(?:8|9|12)\s*b(?:[^a-z0-9]|$)/i.test(source)
-
-    if (lightModel)
-        return {
-            ...config,
-            context_length: 2048,
-            threads: Math.min(config.threads, 4),
-            batch: 128,
-        }
-    if (!heavyModel) return config
-
-    return {
-        ...config,
-        context_length: Math.min(config.context_length, veryHeavyModel ? 1536 : 2048),
-        threads: Math.min(config.threads, 4),
-        batch: 128,
-    }
 }
 
 export namespace Llama {
@@ -222,15 +208,24 @@ export namespace Llama {
 
     export const useLlamaModelStore = create<LlamaState>()((set, get) => ({
         context: undefined,
+        generating: false,
+        loading: false,
         loadProgress: 0,
         chatCount: 0,
         promptCache: undefined,
         load: async (model: ModelDataType) => {
             const storedConfig = useLlamaPreferencesStore.getState().config
-            const config = getFastRuntimeConfig(model, storedConfig)
-            if (config !== storedConfig) {
-                useLlamaPreferencesStore.getState().setConfiguration(config)
-                Logger.info('Applied fast runtime profile for current model')
+            const config = runtimeConfig(model, storedConfig)
+
+            if (
+                totalMemory &&
+                model.file_size > 0 &&
+                estimatedModelMemory(model.file_size, config.context_length) > totalMemory * 0.75
+            ) {
+                Logger.warnToast(
+                    '模型预计占用超过设备总内存的 75%，请改用 0.6B / 1.7B 的 Q4 模型。'
+                )
+                return
             }
 
             let gpuLayers = config.gpu_layers ?? 0
@@ -248,6 +243,7 @@ export namespace Llama {
             const generation = ++modelLoadGeneration
             const previousLoad = activeModelLoad
             const task = (async () => {
+                if (activeModelUnload) await activeModelUnload
                 if (previousLoad) await previousLoad.catch(() => undefined)
                 if (generation !== modelLoadGeneration) {
                     Logger.info('Model load was superseded before it started')
@@ -266,20 +262,32 @@ export namespace Llama {
                     return
                 }
 
+                if (activeCompletion) {
+                    await get().stopCompletion()
+                    await activeCompletion.catch(() => undefined)
+                }
                 if (get().context !== undefined) {
                     if (get().mmproj) await get().context?.releaseMultimodal()
                     await get().context?.release()
-                    set({ context: undefined, model: undefined, mmproj: undefined })
+                    await closeModelDescriptors()
+                    set({
+                        context: undefined,
+                        runtime: undefined,
+                        model: undefined,
+                        mmproj: undefined,
+                    })
                 }
 
+                set({ loading: true, loadProgress: 0 })
                 const progressCallback = (progress: number) => {
-                    if (progress % 5 === 0) get().setLoadProgress(progress)
+                    if (generation === modelLoadGeneration) get().setLoadProgress(progress)
                 }
 
                 const tryLoad = async (nGpuLayers: number, targetDevices: string[]) => {
                     let model_path = model.file_path
                     if (model.file_path.includes('content://')) {
                         model_path = (await getContentFd(model_path)) ?? model_path
+                        if (model_path !== model.file_path) loadedModelFd = model_path
                     }
 
                     const params: ContextParams = {
@@ -296,13 +304,14 @@ export namespace Llama {
                     }
 
                     Logger.info(
-                `\n------ MODEL LOAD -----\n Model Name: ${model.name}\nStarting with parameters: \nContext Length: ${params.n_ctx}\nThreads: ${params.n_threads}\nBatch Size: ${params.n_batch}\nGPU Layers: ${params.n_gpu_layers}\nDevices: ${params.devices?.join(', ') ?? 'CPU'}`
+                        `\n------ MODEL LOAD -----\n Model Name: ${model.name}\nStarting with parameters: \nContext Length: ${params.n_ctx}\nThreads: ${params.n_threads}\nBatch Size: ${params.n_batch}\nGPU Layers: ${params.n_gpu_layers}\nDevices: ${params.devices?.join(', ') ?? 'CPU'}`
                     )
 
                     return initLlama(params, progressCallback).catch((error) => {
                         Logger.warn(`Model load failed: ${JSON.stringify(error)}`)
                         if (model.file_path.includes('content://')) {
-                            closeFd(model_path)
+                            void closeFd(model_path).catch(() => undefined)
+                            loadedModelFd = undefined
                         }
                         return undefined
                     })
@@ -327,9 +336,9 @@ export namespace Llama {
                 for (const attempt of loadAttempts) {
                     llamaContext = await tryLoad(attempt.gpuLayers, attempt.devices)
                     if (llamaContext) {
-                        usingGpu = attempt.gpu
-                        if (attempt.gpu) Logger.info('GPU offload active (OpenCL)')
-                        else if (loadAttempts.length > 1)
+                        usingGpu = attempt.gpu && llamaContext.gpu
+                        if (usingGpu) Logger.info('GPU offload active (OpenCL)')
+                        else if (loadAttempts.length > 1 || attempt.gpu)
                             Logger.warn('GPU offload unavailable, running on CPU')
                         break
                     }
@@ -341,6 +350,7 @@ export namespace Llama {
 
                 if (generation !== modelLoadGeneration) {
                     await llamaContext?.release().catch(() => undefined)
+                    await closeModelDescriptors()
                     Logger.info('Discarded stale model load')
                     return
                 }
@@ -352,8 +362,14 @@ export namespace Llama {
 
                 set({
                     context: llamaContext,
+                    runtime: {
+                        ...config,
+                        gpu_layers: usingGpu ? gpuLayers : 0,
+                        devices: usingGpu ? devices : [],
+                    },
                     model: model,
                     chatCount: 1,
+                    loadProgress: 100,
                 })
 
                 // updated EngineData
@@ -365,6 +381,7 @@ export namespace Llama {
             activeModelLoadId = model.id
             const clear = () => {
                 if (activeModelLoad === task) {
+                    set({ loading: false })
                     activeModelLoad = undefined
                     activeModelLoadId = undefined
                 }
@@ -379,12 +396,14 @@ export namespace Llama {
             let model_path = model.file_path
             if (model.file_path.includes('content://')) {
                 model_path = (await getContentFd(model_path)) ?? model_path
+                if (model_path !== model.file_path) loadedMmprojFd = model_path
             }
 
             Logger.info('Loading MMPROJ')
-            await context.initMultimodal({ path: model_path, use_gpu: true }).catch((e) => {
+            await context.initMultimodal({ path: model_path, use_gpu: false }).catch((e) => {
                 if (model.file_path.includes('content://')) {
-                    closeFd(model_path)
+                    void closeFd(model_path).catch(() => undefined)
+                    loadedMmprojFd = undefined
                 }
 
                 Logger.errorToast(t('model.toast.failedToLoadMMPROJ'), e)
@@ -394,7 +413,7 @@ export namespace Llama {
                 Logger.info(
                     `MMPROJ Loaded:\n- Vision: ${capabilities.vision}\n- Audio: ${capabilities.audio}`
                 )
-            }
+            } else return
 
             set({
                 mmproj: model,
@@ -406,19 +425,35 @@ export namespace Llama {
             set({ loadProgress: progress })
         },
         unload: async () => {
-            modelLoadGeneration++
-            mmkv.set(Global.GpuSessionDirty, false)
-            if (get().mmproj) {
-                await get().context?.releaseMultimodal()
-            }
+            if (activeModelUnload) return activeModelUnload
+            const task = (async () => {
+                modelLoadGeneration++
+                if (activeModelLoad) await activeModelLoad.catch(() => undefined)
+                if (activeCompletion) {
+                    await get().stopCompletion()
+                    await activeCompletion.catch(() => undefined)
+                }
+                mmkv.set(Global.GpuSessionDirty, false)
+                if (get().mmproj) {
+                    await get().context?.releaseMultimodal()
+                }
 
-            await get().context?.release()
-            set({
-                context: undefined,
-                model: undefined,
-                mmproj: undefined,
-            })
-            Logger.info('Model Unloaded')
+                await get().context?.release()
+                await closeModelDescriptors()
+                set({
+                    context: undefined,
+                    runtime: undefined,
+                    model: undefined,
+                    mmproj: undefined,
+                })
+                Logger.info('Model Unloaded')
+            })()
+            activeModelUnload = task
+            try {
+                await task
+            } finally {
+                if (activeModelUnload === task) activeModelUnload = undefined
+            }
         },
         unloadMmproj: async () => {
             if (!get().mmproj) return
@@ -430,6 +465,9 @@ export namespace Llama {
             set({
                 mmproj: undefined,
             })
+            if (loadedMmprojFd) await closeFd(loadedMmprojFd).catch(() => undefined)
+            loadedMmprojFd = undefined
+            useLlamaPreferencesStore.getState().setLastMmprojLoaded(undefined)
         },
         completion: async (
             params: CompletionParams,
@@ -438,19 +476,20 @@ export namespace Llama {
         ) => {
             const llamaContext = get().context
             if (llamaContext === undefined) {
-                Logger.errorToast(t('model.toast.noModelLoaded'))
-                return
+                throw new Error(t('model.toast.noModelLoaded'))
             }
 
             if (activeCompletion) {
-                Logger.warnToast('The local model is already answering another message.')
-                return
+                throw new Error('模型正在回复另一条消息，请稍后重试。')
             }
 
-            const task = llamaContext
-                .completion(params, (data) => {
-                    callback(data.token)
-                })
+            set({ generating: true })
+            const task = Promise.resolve()
+                .then(() =>
+                    llamaContext.completion(params, (data) => {
+                        callback(data.token)
+                    })
+                )
                 .then(async ({ text, timings }: CompletionOutput) => {
                     completed(text, timings)
                     if (mmkv.getBoolean(Global.GpuSessionDirty)) {
@@ -471,6 +510,7 @@ export namespace Llama {
                 await task
             } finally {
                 if (activeCompletion === task) activeCompletion = undefined
+                set({ generating: false })
             }
         },
         stopCompletion: async () => {

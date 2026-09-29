@@ -9,11 +9,11 @@ import { Logger } from '@lib/state/Logger'
 
 const SAFE_MODELS = [
     {
-        label: '8B 推荐 · 储存约 4.68 GB · 建议 8-12 GB RAM',
+        label: '8B 高配 · 储存约 4.68 GB · 建议 8-12 GB RAM',
         url: 'https://hf-mirror.com/Qwen/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf',
     },
     {
-        label: '4B 流畅 · 储存约 2.33 GB · 建议 6 GB RAM',
+        label: '4B 中配 · 储存约 2.33 GB · 建议 6 GB RAM',
         url: 'https://hf-mirror.com/ggml-org/Qwen3-4B-GGUF/resolve/main/Qwen3-4B-Q4_K_M.gguf',
     },
     {
@@ -21,7 +21,7 @@ const SAFE_MODELS = [
         url: 'https://hf-mirror.com/ggml-org/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf',
     },
     {
-        label: '0.6B 超低配 · 储存约 0.37 GB · 建议 2 GB RAM',
+        label: '0.6B 推荐入门 · 储存约 0.37 GB · 建议 2 GB RAM',
         url: 'https://hf-mirror.com/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf',
     },
     {
@@ -32,11 +32,11 @@ const SAFE_MODELS = [
 
 const LOCAL_MODELS = [
     {
-        label: '8B 推荐 · 储存约 4.68 GB · 建议 8-12 GB RAM',
+        label: '8B 高配 · 储存约 4.68 GB · 建议 8-12 GB RAM',
         url: 'https://hf-mirror.com/bartowski/mlabonne_Qwen3-8B-abliterated-GGUF/resolve/main/mlabonne_Qwen3-8B-abliterated-Q4_K_M.gguf',
     },
     {
-        label: '4B 流畅 · 储存约 2.32 GB · 建议 6 GB RAM',
+        label: '4B 中配 · 储存约 2.32 GB · 建议 6 GB RAM',
         url: 'https://hf-mirror.com/bartowski/mlabonne_Qwen3-4B-abliterated-GGUF/resolve/main/mlabonne_Qwen3-4B-abliterated-Q4_K_M.gguf',
     },
     {
@@ -44,7 +44,7 @@ const LOCAL_MODELS = [
         url: 'https://hf-mirror.com/bartowski/mlabonne_Qwen3-1.7B-abliterated-GGUF/resolve/main/mlabonne_Qwen3-1.7B-abliterated-Q4_K_M.gguf',
     },
     {
-        label: '0.6B 超低配 · 储存约 0.37 GB · 建议 2 GB RAM',
+        label: '0.6B 推荐入门 · 储存约 0.37 GB · 建议 2 GB RAM',
         url: 'https://hf-mirror.com/bartowski/mlabonne_Qwen3-0.6B-abliterated-GGUF/resolve/main/mlabonne_Qwen3-0.6B-abliterated-Q4_K_M.gguf',
     },
     {
@@ -119,13 +119,19 @@ const ModelNewMenu: React.FC<ModelNewMenuProps> = ({ modelImporting, setModelImp
         close()
         if (modelImporting) return
         setModelImporting(true)
-        await Model.importModel()
-        setModelImporting(false)
+        try {
+            await Model.importModel()
+        } catch (error) {
+            Logger.errorToast('模型导入失败，请检查剩余空间和文件权限。', error)
+        } finally {
+            setModelImporting(false)
+        }
     }
 
     return (
         <View>
             <ContextMenu
+                accessibilityLabel="导入或下载模型"
                 placement="bottom"
                 triggerIcon="file-add"
                 disabled={modelImporting}
@@ -153,11 +159,14 @@ const ModelNewMenu: React.FC<ModelNewMenuProps> = ({ modelImporting, setModelImp
                     {
                         label: '下载安全模型',
                         icon: 'cloud-download',
-                        submenu: SAFE_MODELS.map((model) => ({
-                            label: model.label,
-                            icon: 'cloud-download' as const,
-                            onPress: (close: () => void) => handleOpenSafeModel(close, model.url),
-                        })),
+                        submenu: [...SAFE_MODELS]
+                            .sort((a, b) => parseFloat(a.label) - parseFloat(b.label))
+                            .map((model) => ({
+                                label: model.label,
+                                icon: 'cloud-download' as const,
+                                onPress: (close: () => void) =>
+                                    handleOpenSafeModel(close, model.url),
+                            })),
                     },
                     {
                         label: '下载本地包',

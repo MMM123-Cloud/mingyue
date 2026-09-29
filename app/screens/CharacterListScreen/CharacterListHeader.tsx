@@ -119,6 +119,10 @@ const CharacterListHeader: React.FC<CharacterListHeaderProps> = ({ resultLength 
                         variant="tertiary"
                         iconName={showSearch ? 'close' : 'search'}
                         onPress={() => {
+                            if (showSearch) {
+                                setTextFilter('')
+                                setTagFilter([])
+                            }
                             setShowSearch(!showSearch)
                         }}
                         iconSize={24}
@@ -147,7 +151,7 @@ const CharacterListHeader: React.FC<CharacterListHeaderProps> = ({ resultLength 
                             <StringArrayEditor
                                 containerStyle={{ flex: 0 }}
                                 suggestions={data
-                                    .sort((a, b) => b.tagCount - a.tagCount)
+                                    .toSorted((a, b) => b.tagCount - a.tagCount)
                                     .map((item) => item.tag)}
                                 label={t('character.list.search.byTags')}
                                 value={tagFilter}

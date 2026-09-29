@@ -74,3 +74,7 @@ IMG_*.jpg
 codex-clipboard-*.png
 *_temp*.jpg
 *_temp*.png
+
+.signing/
+autolinking.json
+!assets/models/llama3tokenizer.gguf

@@ -8,6 +8,7 @@ import { AppSettings } from '@lib/constants/GlobalValues'
 import { Characters } from '@lib/state/Characters'
 import { Chats } from '@lib/state/Chat'
 import { useAvatarViewerStore } from '@lib/state/components/AvatarViewer'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 type ChatFrameProps = {
@@ -63,7 +64,7 @@ const ChatFrame: React.FC<ChatFrameProps> = ({ children, index, nowGenerating, i
                     paddingHorizontal: 8,
                     paddingVertical: 8,
                     borderRadius: 16,
-                    backgroundColor: color.neutral._100 + 'bb',
+                    backgroundColor: withAlpha(color.neutral._100, 'bb'),
                 }}>
                 <View
                     style={{

@@ -59,6 +59,7 @@ export const useWalletStore = create<WalletState>()(
             records: [],
             lastMonthlyGrant: getMonthKey(),
             transferToAI: (amount, note, characterId, characterName) => {
+                amount = Math.round((amount + Number.EPSILON) * 100) / 100
                 const developerMode = useDeveloperModeStore.getState().enabled
                 if (!Number.isFinite(amount) || amount <= 0) return false
                 if (!developerMode && amount > get().balance) return false
@@ -87,6 +88,7 @@ export const useWalletStore = create<WalletState>()(
                 return true
             },
             receiveFromAI: (amount, note, characterId, characterName) => {
+                amount = Math.round((amount + Number.EPSILON) * 100) / 100
                 const key = String(characterId)
                 const aiBalance = get().aiBalances[key] ?? 0
                 if (!Number.isFinite(amount) || amount <= 0 || amount > aiBalance) return false
@@ -112,6 +114,7 @@ export const useWalletStore = create<WalletState>()(
                 return true
             },
             receiveGiftFromAI: (amount, note, characterId, characterName) => {
+                amount = Math.round((amount + Number.EPSILON) * 100) / 100
                 if (!Number.isFinite(amount) || amount <= 0 || amount > 5000) return false
                 set({
                     balance: Number((get().balance + amount).toFixed(2)),
@@ -204,20 +207,19 @@ export const useWalletStore = create<WalletState>()(
         {
             name: Storage.Wallet,
             storage: createMMKVStorage(),
-            version: 3,
+            version: 4,
             migrate: (persistedState: any) => ({
                 ...persistedState,
                 balance: Number(
-                    (
-                        (persistedState?.balance ?? startBalance) -
-                        (persistedState?.records ?? [])
-                            .filter((item: WalletRecord) => item.direction === 'recharge')
-                            .reduce((sum: number, item: WalletRecord) => sum + item.amount, 0)
+                    Math.max(
+                        0,
+                        Number.isFinite(persistedState?.balance)
+                            ? persistedState.balance
+                            : startBalance
                     ).toFixed(2)
                 ),
-                records: (persistedState?.records ?? []).filter(
-                    (item: WalletRecord) => item.direction !== 'recharge'
-                ),
+                records: persistedState?.records ?? [],
+                aiBalances: persistedState?.aiBalances ?? {},
                 lastMonthlyGrant: persistedState?.lastMonthlyGrant ?? '',
             }),
         }

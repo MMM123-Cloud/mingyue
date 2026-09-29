@@ -13,13 +13,14 @@ const ModelEmpty = () => {
                 alignItems: 'center',
                 flex: 1,
             }}>
-            <AntDesign name="file-unknown" size={60} color={color.text._700} />
+            <AntDesign name="file-add" size={32} color={color.text._500} />
             <Text
                 style={{
-                    color: color.text._700,
+                    color: color.text._400,
                     marginTop: spacing.xl,
-                    fontStyle: 'italic',
-                    fontSize: fontSize.l,
+                    fontSize: fontSize.m,
+                    textAlign: 'center',
+                    lineHeight: 24,
                 }}>
                 <Trans i18nKey="model.empty" />
             </Text>

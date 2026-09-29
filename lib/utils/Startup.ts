@@ -8,6 +8,7 @@ import { setBackgroundColorAsync as setUIBackgroundColor } from 'expo-system-ui'
 import { z } from 'zod'
 
 import { migrateData } from '@db/dataMigrations'
+import { loadDatabaseExtensions } from '@db/db'
 import { Model } from '@lib/engine/Local/Model'
 import { Tokenizer } from '@lib/engine/Tokenizer'
 import { setupNotifications } from '@lib/notifications/Notifications'
@@ -28,21 +29,20 @@ import { Chats } from '../state/Chat'
 import { Logger } from '../state/Logger'
 import { mmkv } from '../storage/MMKV'
 import { Theme } from '../theme/ThemeManager'
-import { startNetworkTimeSync, syncNetworkTime } from './NetworkTime'
 import { useWalletStore } from '../state/Wallet'
 
 const loadNewestChat = async () => {
     Logger.info('Loading latest chat')
     const newestChat = await Chats.db.query.chatNewest()
-    if (!newestChat) return
+    if (!newestChat) return false
     await Characters.useCharacterStore.getState().setCard(newestChat.character_id)
     await Chats.useChatState.getState().setId(newestChat.id)
+    return true
 }
 
 export const loadChatOnInit = async () => {
     if (!mmkv.getBoolean(AppSettings.ChatOnStartup)) return
-    await loadNewestChat()
-    router.push('/screens/ChatScreen')
+    if (await loadNewestChat()) router.push('/screens/ChatScreen')
 }
 
 export const useTextIntentFocus = () => {
@@ -173,7 +173,7 @@ const applyPerformanceProfileV6 = () => {
 const createDefaultCard = async () => {
     if (!mmkv.getBoolean(AppSettings.CreateDefaultCard)) return
     const result = await Characters.db.query.cardList('character')
-    if (result.length === 0) await Characters.createDefaultCard()
+    if (result.length === 0 && !(await Characters.createDefaultCard())) return
     mmkv.set(AppSettings.CreateDefaultCard, false)
 }
 
@@ -260,17 +260,19 @@ const migratePresets_0_8_3_to_0_8_4 = async () => {
     const files = listFiles(presetPath)
 
     if (files.length === 0) return
-    files.map(async (item) => {
-        try {
-            const data = await readStringAsync(`${presetPath}/${item}`)
-            SamplersManager.useSamplerStore.getState().addSamplerConfig({
-                data: JSON.parse(data),
-                name: item.replace('.json', ''),
-            })
-        } catch (e) {
-            Logger.error(`Failed to migrate preset ${item}: ${e}`)
-        }
-    })
+    await Promise.all(
+        files.map(async (item) => {
+            try {
+                const data = await readStringAsync(`${presetPath}/${item}`)
+                SamplersManager.useSamplerStore.getState().addSamplerConfig({
+                    data: JSON.parse(data),
+                    name: item.replace('.json', ''),
+                })
+            } catch (e) {
+                Logger.error(`Failed to migrate preset ${item}: ${e}`)
+            }
+        })
+    )
     deleteFile(presetPath)
 }
 
@@ -319,16 +321,17 @@ const setKeepAwake = async () => {
     else KeepAwake.deactivateKeepAwake()
 }
 
-const setDefaultInstruct = () => {
-    Instructs.db.query.instructList().then(async (list) => {
+const setDefaultInstruct = async () => {
+    const list = await Instructs.db.query.instructList()
+    {
         if (!list) {
             Logger.error('Instruct database Invalid, this should not happen! Please report this!')
         } else if (list?.length === 0) {
             Logger.warn('No Instructs exist, creating default Instruct')
             const id = await Instructs.generateInitialDefaults()
-            Instructs.useInstruct.getState().load(id)
+            await Instructs.useInstruct.getState().load(id)
         }
-    })
+    }
 }
 
 const setCPUThreads = () => {
@@ -344,10 +347,23 @@ const setCPUThreads = () => {
     mmkv.set(Global.CPUThreads, newThreads)
 }
 
+let startupPromise: Promise<void> | undefined
 export const startupApp = () => {
+    if (!startupPromise) {
+        startupPromise = initializeApp().catch((error) => {
+            startupPromise = undefined
+            throw error
+        })
+    }
+    return startupPromise
+}
+
+const initializeApp = async () => {
+    const vectorVersion = await loadDatabaseExtensions()
+    if (vectorVersion) Logger.info(`Vector extension ready: ${vectorVersion}`)
     console.log('[APP STARTED]: T1APT')
-    startNetworkTimeSync()
-    void syncNetworkTime().then(() => useWalletStore.getState().ensureMonthlyAllowance())
+    // Offline startup must not depend on third-party time servers.
+    useWalletStore.getState().ensureMonthlyAllowance()
     // DEV: Needed for Reset
     //Chats.useChatState.getState().reset()
     //Characters.useCharacterCard.getState().unloadCard()
@@ -360,18 +376,18 @@ export const startupApp = () => {
     applyPerformanceProfileV4()
     applyPerformanceProfileV5()
     applyPerformanceProfileV6()
-    generateDefaultDirectories()
-    setDefaultUser()
-    setDefaultInstruct()
+    await generateDefaultDirectories()
+    await setDefaultUser()
+    await setDefaultInstruct()
 
     // setup notifications
     setupNotifications()
 
     // Initialize the default card
-    createDefaultCard()
+    await createDefaultCard()
 
     // get fp16, i8mm and dotprod data
-    setCPUFeatures()
+    await setCPUFeatures().catch((error) => Logger.warn(`CPU features unavailable: ${error}`))
 
     // set cpu thread count
     setCPUThreads()
@@ -384,8 +400,8 @@ export const startupApp = () => {
     setKeepAwake()
 
     // Local Model Data in case external models are deleted
-    Model.verifyModelList()
-    Tokenizer.useTokenizerState.getState().loadModel()
+    await Model.verifyModelList()
+    void Tokenizer.useTokenizerState.getState().loadModel()
 
     // Fix any missing samplers
     SamplersManager.useSamplerStore.getState().fixConfigs()
@@ -393,12 +409,12 @@ export const startupApp = () => {
     // migrations for old versions
     migrateModelData_0_7_10_to_0_8_0()
     migrateModelData_0_8_4_to_0_8_5()
-    migratePresets_0_8_3_to_0_8_4()
+    await migratePresets_0_8_3_to_0_8_4()
     migrateTTSData_0_8_5_to_0_8_6()
     migrateAppMode_0_8_5_to_0_8_6()
     migrateTextIntent_0_8_8_to_0_8_9()
     lockScreenOrientation()
-    migrateData()
+    await migrateData()
     const backgroundColor = Theme.useColorState.getState().color.neutral._100
     setUIBackgroundColor(backgroundColor)
 

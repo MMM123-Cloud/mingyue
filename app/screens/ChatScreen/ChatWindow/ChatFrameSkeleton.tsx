@@ -3,6 +3,7 @@ import { View } from 'react-native'
 import { useMMKVBoolean } from 'react-native-mmkv'
 
 import { AppSettings } from '@lib/constants/GlobalValues'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 type ChatFrameSkeletonProps = {
@@ -25,7 +26,7 @@ const ChatFrameSkeleton: React.FC<ChatFrameSkeletonProps> = ({
     const rowDir = isUser ? 'row-reverse' : 'row'
     const align = isUser ? 'flex-end' : 'flex-start'
 
-    const skeletonColor = color.neutral._300 + '33'
+    const skeletonColor = withAlpha(color.neutral._300, '33')
 
     if (wide) {
         return (
@@ -35,7 +36,7 @@ const ChatFrameSkeleton: React.FC<ChatFrameSkeletonProps> = ({
                     paddingHorizontal: 8,
                     paddingVertical: 8,
                     borderRadius: 16,
-                    backgroundColor: color.neutral._100 + 'bb',
+                    backgroundColor: withAlpha(color.neutral._100, 'bb'),
                 }}>
                 <View
                     style={{

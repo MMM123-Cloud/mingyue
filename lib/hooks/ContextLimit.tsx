@@ -8,11 +8,12 @@ import { SamplersManager } from '@lib/state/SamplerState'
 export const useContextLimit = (): number => {
     const { appMode } = useAppMode()
     const localLimit = Llama.useLlamaPreferencesStore((state) => state.config.context_length)
+    const runtimeLimit = Llama.useLlamaModelStore((state) => state.runtime?.context_length)
     const sampler = SamplersManager.useCurrentSampler()
     const samplerLimit = sampler?.data?.[SamplerID.CONTEXT_LENGTH] ?? 4096
     const { apiValue, apiConfig } = APIManager.useActiveValueTemplate()
 
-    if (appMode === 'local') return localLimit
+    if (appMode === 'local') return runtimeLimit ?? localLimit
     if (apiConfig?.model.useModelContextLength && apiConfig && apiValue) {
         const hasContextLimitField = apiConfig.request.samplerFields.some(
             (item) => item.samplerID === SamplerID.GENERATED_LENGTH

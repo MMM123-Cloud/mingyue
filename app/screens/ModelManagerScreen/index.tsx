@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite'
 import { useState } from 'react'
+import { useSegments } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SectionList } from 'react-native'
 import Animated, { Easing, SlideInLeft, SlideOutLeft } from 'react-native-reanimated'
@@ -23,6 +24,7 @@ import ModelSettings from './ModelSettings'
 const ModelManagerScreen = () => {
     const { t } = useTranslation()
     const { spacing } = Theme.useTheme()
+    const inTabs = useSegments()[0] === '(tabs)'
 
     const { data: mmprojLinks } = useLiveQuery(Model.getMMPROJLinks())
 
@@ -55,11 +57,11 @@ const ModelManagerScreen = () => {
 
     return (
         <SafeAreaView
-            edges={['bottom']}
+            edges={inTabs ? [] : ['bottom']}
             style={{
                 paddingTop: spacing.xl,
                 paddingHorizontal: spacing.xl,
-                paddingBottom: spacing.xl2,
+                paddingBottom: 8,
                 flex: 1,
             }}>
             <HeaderTitle title={showSettings ? t('model.settings.title') : t('model.title')} />
@@ -74,25 +76,36 @@ const ModelManagerScreen = () => {
                 }
             />
 
+            <HorizontalSelector
+                style={{ flex: 0, marginBottom: 16 }}
+                values={[
+                    { label: t('model.title'), value: false },
+                    { label: t('common.navigation.settings'), value: true },
+                ]}
+                selected={showSettings}
+                onPress={setShowSettings}
+            />
+
             {!showSettings && (
                 <Animated.View
                     style={{ flex: 1 }}
                     entering={SlideInLeft.easing(Easing.inOut(Easing.cubic))}
                     exiting={SlideOutLeft.easing(Easing.inOut(Easing.cubic))}>
-                    <ModelInfoHeader
-                        modelImporting={modelImporting}
-                        modelLoading={modelLoading}
-                        modelListLength={modelList.length}
-                        modelUpdatedAt={modelUpdatedAt}
-                    />
-
                     <SectionList
+                        ListHeaderComponent={
+                            <ModelInfoHeader
+                                modelImporting={modelImporting}
+                                modelLoading={modelLoading}
+                                modelListLength={modelList.length}
+                                modelUpdatedAt={modelUpdatedAt}
+                            />
+                        }
                         style={{
                             marginTop: 16,
                             flex: 1,
                         }}
                         sections={data}
-                        renderItem={({ item, index }) => (
+                        renderItem={({ item }) => (
                             <ModelItem
                                 item={item}
                                 mmprojList={mmprojList}
@@ -130,15 +143,6 @@ const ModelManagerScreen = () => {
                     exit={() => setShowSettings(false)}
                 />
             )}
-            <HorizontalSelector
-                style={{ flex: 0 }}
-                values={[
-                    { label: t('model.title'), value: false },
-                    { label: t('common.navigation.settings'), value: true },
-                ]}
-                selected={showSettings}
-                onPress={setShowSettings}
-            />
         </SafeAreaView>
     )
 }

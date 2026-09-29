@@ -1,13 +1,13 @@
 {
   "name": "chatterui",
   "main": "expo-router/entry",
-  "version": "0.10.29",
+  "version": "0.12.0",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "jest --watchAll",
+    "test": "jest --runInBand",
     "postinstall": "patch-package",
     "lint": "eslint app db lib --ignore-pattern db/migrations",
     "lint:fix": "eslint app db lib --ignore-pattern db/migrations --fix",
@@ -18,7 +18,8 @@
     "migrate": "npx drizzle-kit generate",
     "patchsql": "npx patch-package expo-sqlite --exclude \"\\.project|\\.cxx|\\.c|\\.h|build|bin\" --case-sensitive-path-filtering",
     "patchfetch": "npx patch-package expo --include '\".*fetch\\.ts$|.*NativeResponse\\.kt$\"'",
-    "patchfs": "npx patch-package expo-file-system --include \"\\.kt$\""
+    "patchfs": "npx patch-package expo-file-system --include \"\\.kt$\"",
+    "typecheck": "tsc --noEmit"
   },
   "jest": {
     "preset": "jest-expo",
@@ -47,6 +48,7 @@
     "expo": "~57.0.24",
     "expo-application": "~57.0.3",
     "expo-asset": "~57.0.3",
+    "expo-blur": "~57.0.3",
     "expo-build-properties": "~57.0.21",
     "expo-camera": "~57.0.5",
     "expo-clipboard": "~57.0.2",
@@ -134,5 +136,14 @@
     "react-native-mmkv@4.0.0-beta.12": true,
     "rreact-native-nitro-modules@0.31.0": true,
     "unrs-resolver@1.11.1": true
+  },
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-blur"
+        ]
+      }
+    }
   }
 }

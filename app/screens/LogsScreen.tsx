@@ -56,10 +56,10 @@ const LogsScreen = () => {
     }
 
     const logColor: Record<LogLevel, string> = {
-        [LogLevel.INFO]: 'white',
-        [LogLevel.WARN]: 'yellow',
-        [LogLevel.ERROR]: 'red',
-        [LogLevel.DEBUG]: 'gray',
+        [LogLevel.INFO]: color.text._100,
+        [LogLevel.WARN]: color.primary._700,
+        [LogLevel.ERROR]: color.error._700,
+        [LogLevel.DEBUG]: color.text._400,
     }
 
     const headerRight = () => (
@@ -98,12 +98,12 @@ const LogsScreen = () => {
             <HeaderButton headerRight={headerRight} />
             <View
                 style={{
-                    borderColor: color.primary._500,
+                    borderColor: color.neutral._300,
                     borderWidth: 1,
                     borderRadius: 16,
                     flex: 1,
                     margin: 16,
-                    backgroundColor: '#000',
+                    backgroundColor: color.neutral._200,
 
                     padding: 16,
                 }}>

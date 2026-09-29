@@ -3,17 +3,13 @@ import { usePathname } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Text, View } from 'react-native'
-import Animated, { LinearTransition } from 'react-native-reanimated'
+import { FlatList } from 'react-native'
 import { useShallow } from 'zustand/react/shallow'
 
-import Alert from '@components/views/Alert'
-import Drawer from '@components/views/Drawer'
-import HeaderButton from '@components/views/HeaderButton'
-import HeaderTitle from '@components/views/HeaderTitle'
+import { MoonHomeHeader } from '@lib/ui/LiquidHome'
 import { useSocialEngine } from '@lib/hooks/SocialEngine'
 import { Characters, CharInfo, MAX_CONTACTS } from '@lib/state/Characters'
 import { CharacterSorter } from '@lib/state/CharacterSorter'
-import { useDeveloperContactStore } from '@lib/state/DeveloperContact'
 import { useDeveloperModeStore } from '@lib/state/DeveloperMode'
 import { TagHider } from '@lib/state/TagHider'
 import { Theme } from '@lib/theme/ThemeManager'
@@ -21,8 +17,7 @@ import { Theme } from '@lib/theme/ThemeManager'
 import CharacterListHeader from './CharacterListHeader'
 import CharacterListing from './CharacterListing'
 import CharacterNewMenu from './CharacterNewMenu'
-import DeveloperContactListing from './DeveloperContactListing'
-import CharactersEmpty from './CharactersEmpty'
+import CharactersEmpty from '@lib/ui/LiquidEmpty'
 import CharactersSearchEmpty from './CharactersSearchEmpty'
 
 const PAGE_SIZE = 30
@@ -32,7 +27,6 @@ const CharacterList: React.FC = () => {
     const { color } = Theme.useTheme()
     useSocialEngine()
     const developerMode = useDeveloperModeStore((state) => state.enabled)
-    const developerRequested = useRef(false)
     const [nowLoading, setNowLoading] = useState(false)
     const { searchType, searchOrder, tagFilter, textFilter } = CharacterSorter.useSorterStore(
         useShallow((state) => ({
@@ -43,8 +37,13 @@ const CharacterList: React.FC = () => {
         }))
     )
     const hiddenTags = TagHider.useHiddenTags()
-    const [pages, setPages] = useState(3)
-    const [previousLength, setPreviousLength] = useState(0)
+    const filterKey = JSON.stringify([searchType, searchOrder, textFilter, tagFilter, hiddenTags])
+    const [pagination, setPagination] = useState({ key: filterKey, pages: 3 })
+    const pages = pagination.key === filterKey ? pagination.pages : 3
+    const previousLength = useRef(0)
+    useEffect(() => {
+        previousLength.current = 0
+    }, [filterKey])
     const { data, updatedAt } = useLiveQuery(
         Characters.db.query.cardListQueryWindow(
             'character',
@@ -71,84 +70,57 @@ const CharacterList: React.FC = () => {
         }))
     }, [data])
 
-    useEffect(() => {
-        if (developerRequested.current) return
-        const developer = useDeveloperContactStore.getState()
-        if (developer.status !== 'none' && developer.status !== 'prompted') return
-        developerRequested.current = true
-        developer.request()
-        Alert.alert({
-            title: '开发者申请添加好友',
-            description: '开发者：加个好友吧？同意后我会把使用教程和声明发给你。',
-            buttons: [
-                {
-                    label: '拒绝',
-                    onPress: () => useDeveloperContactStore.getState().reject(),
-                },
-                {
-                    label: '同意',
-                    onPress: () => useDeveloperContactStore.getState().accept(),
-                },
-            ],
-        })
-    }, [])
-
     // do not render when not shown, optimizes some rerenders
     const path = usePathname()
     if (path !== '/') return
 
     return (
-        <View style={{ paddingTop: 8, flex: 1, backgroundColor: color.neutral._100 }}>
-            <HeaderTitle title={t('common.brand.name')} />
-            <HeaderButton
-                headerLeft={() => <Drawer.Button drawerID={Drawer.ID.SETTINGS} />}
-            />
-
-            <CharacterListHeader resultLength={characterList.length} />
-            <View
-                style={{
-                    marginHorizontal: 12,
-                    marginBottom: 4,
-                    paddingHorizontal: 14,
-                    paddingVertical: 10,
-                    backgroundColor: color.neutral._200,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: color.neutral._300,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                }}>
-                <Text
-                    style={{
-                        color: color.text._500,
-                        fontSize: 12,
-                        flexShrink: 1,
-                        marginRight: 8,
-                    }}>
-                    {developerMode
-                        ? `联系人 ${characterList.filter((item) => !item.deletedAt).length}（开发者，不限人数）`
-                        : `联系人 ${characterList.filter((item) => !item.deletedAt).length}/${MAX_CONTACTS}`}
-                </Text>
-                <CharacterNewMenu
-                    showLabel
-                    nowLoading={nowLoading}
-                    setNowLoading={setNowLoading}
-                />
-            </View>
+        <View style={{ flex: 1, width: '100%', maxWidth: 920, alignSelf: 'center' }}>
             <View style={{ flex: 1 }}>
-                <Animated.FlatList
-                    layout={LinearTransition}
-                    itemLayoutAnimation={LinearTransition}
+                <FlatList
                     showsVerticalScrollIndicator={false}
+                    ListHeaderComponent={
+                        <View style={{ marginHorizontal: -20 }}>
+                            <MoonHomeHeader />
+                            <View
+                                style={{
+                                    marginHorizontal: 12,
+                                    marginBottom: 4,
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 10,
+                                    backgroundColor: 'transparent',
+                                    borderRadius: 20,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                }}>
+                                <Text
+                                    style={{
+                                        color: color.text._300,
+                                        fontSize: 15,
+                                        fontWeight: '500',
+                                        flexShrink: 1,
+                                        marginRight: 8,
+                                    }}>
+                                    {developerMode
+                                        ? `联系人 ${characterList.filter((item) => !item.deletedAt).length}（开发者，不限人数）`
+                                        : `我的联系人 · ${characterList.filter((item) => !item.deletedAt).length}/${MAX_CONTACTS}`}
+                                </Text>
+                                <CharacterNewMenu
+                                    showLabel
+                                    nowLoading={nowLoading}
+                                    setNowLoading={setNowLoading}
+                                />
+                            </View>
+                            <CharacterListHeader resultLength={characterList.length} />
+                        </View>
+                    }
                     contentContainerStyle={{
-                        paddingHorizontal: 12,
+                        paddingHorizontal: 20,
                         paddingTop: 4,
                         paddingBottom: 24,
-                        rowGap: 8,
-                        backgroundColor: color.neutral._100,
+                        rowGap: 12,
                     }}
-                    ListHeaderComponent={DeveloperContactListing}
                     data={characterList}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={({ item }) => (
@@ -160,18 +132,28 @@ const CharacterList: React.FC = () => {
                     )}
                     onEndReachedThreshold={1}
                     onEndReached={() => {
-                        if (previousLength === data.length) {
+                        if (
+                            previousLength.current === data.length ||
+                            data.length < PAGE_SIZE * pages
+                        ) {
                             return
                         }
-                        setPreviousLength(data.length)
-                        setPages(pages + 1)
+                        previousLength.current = data.length
+                        setPagination((current) => ({
+                            key: filterKey,
+                            pages: (current.key === filterKey ? current.pages : 3) + 1,
+                        }))
                     }}
                     windowSize={3}
-                    onStartReachedThreshold={0.1}
-                    onStartReached={() => {
-                        if (pages !== 3) setPages(3)
-                    }}
-                    ListEmptyComponent={() => data.length === 0 && updatedAt && <CharactersEmpty />}
+                    ListEmptyComponent={() =>
+                        updatedAt ? (
+                            textFilter || tagFilter.length ? (
+                                <CharactersSearchEmpty />
+                            ) : (
+                                <CharactersEmpty />
+                            )
+                        ) : null
+                    }
                 />
             </View>
 

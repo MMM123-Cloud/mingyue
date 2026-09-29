@@ -16,10 +16,10 @@ const CharactersEmpty = () => {
                 alignItems: 'center',
                 marginTop: spacing.xl3,
             }}>
-            <MaterialIcons name="person-search" color={color.text._700} size={60} />
+            <MaterialIcons name="person-search" color={color.text._300} size={60} />
             <Text
                 style={{
-                    color: color.text._700,
+                    color: color.text._300,
                     marginTop: spacing.xl,
                     fontStyle: 'italic',
                     fontSize: fontSize.l,

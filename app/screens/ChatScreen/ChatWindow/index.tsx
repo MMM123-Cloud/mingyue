@@ -86,15 +86,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, scrollData }) => {
     const showJumpRef = useRef(false)
     const chatIdRef = useRef(chatId)
     const updateScrollRef = useRef(updateScrollPosition)
-    chatIdRef.current = chatId
-    updateScrollRef.current = updateScrollPosition
+    useEffect(() => {
+        chatIdRef.current = chatId
+        updateScrollRef.current = updateScrollPosition
+    }, [chatId, updateScrollPosition])
 
-    const viewabilityConfig = useRef({
-        itemVisiblePercentThreshold: 20,
-        minimumViewTime: 120,
-    }).current
+    const viewabilityConfig = useMemo(
+        () => ({
+            itemVisiblePercentThreshold: 20,
+            minimumViewTime: 120,
+        }),
+        []
+    )
 
-    const onViewableItemsChanged = useRef(
+    const onViewableItemsChanged = useCallback(
         ({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
             const index = viewableItems[0]?.index
             if (index == null) return
@@ -111,8 +116,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, scrollData }) => {
                 showJumpRef.current = nextShowJump
                 setShowJump(nextShowJump)
             }
-        }
-    ).current
+        },
+        []
+    )
 
     const renderItem = useCallback(
         ({ item }: { item: ChatRow }) => (

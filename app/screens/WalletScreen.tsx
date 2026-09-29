@@ -3,8 +3,11 @@ import { useTranslation } from 'react-i18next'
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import HeaderTitle from '@components/views/HeaderTitle'
+import Alert from '@components/views/Alert'
+import { GlassPanel } from '@lib/ui/Glass'
 import { useDeveloperModeStore } from '@lib/state/DeveloperMode'
 import { useWalletStore } from '@lib/state/Wallet'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 
 const WalletScreen = () => {
@@ -17,7 +20,7 @@ const WalletScreen = () => {
     return (
         <View style={styles.container}>
             <HeaderTitle title={t('navigation.wallet')} />
-            <View style={styles.balanceCard}>
+            <GlassPanel blur style={styles.balanceCard}>
                 <Text style={styles.balanceLabel}>零钱（本地模拟）</Text>
                 <Text style={styles.balance}>¥ {balance.toFixed(2)}</Text>
                 <View style={styles.actions}>
@@ -29,11 +32,22 @@ const WalletScreen = () => {
                     ) : (
                         <Text style={styles.normalHint}>普通模式每月补贴 ¥10000，不能手动加钱</Text>
                     )}
-                    <TouchableOpacity style={styles.resetButton} onPress={resetWallet}>
+                    <TouchableOpacity
+                        style={styles.resetButton}
+                        onPress={() =>
+                            Alert.alert({
+                                title: '重置虚拟钱包？',
+                                description: '这会清除账单并恢复初始余额，操作无法撤销。',
+                                buttons: [
+                                    { label: '取消' },
+                                    { label: '重置', type: 'warning', onPress: resetWallet },
+                                ],
+                            })
+                        }>
                         <Text style={styles.resetText}>重置</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
+            </GlassPanel>
 
             <Text style={styles.sectionTitle}>账单</Text>
             <FlatList
@@ -84,13 +98,13 @@ const useStyles = () => {
     return StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: color.neutral._100,
+            backgroundColor: 'transparent',
         },
         balanceCard: {
             margin: spacing.xl,
             padding: spacing.xl2,
-            borderRadius: borderRadius.l,
-            backgroundColor: color.primary._400,
+            borderRadius: 24,
+            backgroundColor: withAlpha(color.primary._200, 'D8'),
         },
         balanceLabel: {
             color: color.neutral._900,
@@ -114,7 +128,7 @@ const useStyles = () => {
             columnGap: spacing.s,
             paddingHorizontal: spacing.l,
             paddingVertical: spacing.m,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
             backgroundColor: color.shadow,
         },
         actionText: {
@@ -153,10 +167,10 @@ const useStyles = () => {
         record: {
             flexDirection: 'row',
             alignItems: 'center',
-            backgroundColor: color.neutral._200,
+            backgroundColor: withAlpha(color.neutral._200, 'B8'),
             padding: spacing.l,
             marginBottom: spacing.s,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
             columnGap: spacing.m,
         },
         recordTitle: {

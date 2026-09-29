@@ -1,29 +1,40 @@
-name: Build Workflow
-
+name: Android build
 on:
+    workflow_dispatch:
     push:
-        branches:
-            - master
-            - dev
-        paths-ignore:
-            - 'README.md'
-            - '.github/ISSUE_TEMPLATE/*'
-
+        branches: [main]
+        paths-ignore: ['docs/**', 'README.md']
+permissions:
+    contents: read
 jobs:
-    trigger-build:
+    android:
         runs-on: ubuntu-latest
+        timeout-minutes: 60
         steps:
-            - name: Connect Tailscale
-              uses: tailscale/github-action@v3
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
               with:
-                  oauth-client-id: ${{secrets.TS_OAUTH_CLIENT_ID}}
-                  oauth-secret: ${{secrets.TS_OAUTH_SECRET}}
-                  tags: tag:chatterui-cd
-
-            - name: Trigger Build
-              run: |
-                  if [[ "${{ github.ref }}" == "refs/heads/master" ]]; then
-                    curl -N -sS --max-time 1200 -X GET ${{ secrets.TS_BUILD_API }} || true
-                  elif [[ "${{ github.ref }}" == "refs/heads/dev" ]]; then
-                    curl -N -sS --max-time 1200 -X GET ${{ secrets.TS_BUILD_DEV_API }} || true
-                  fi
+                  node-version: 24
+                  cache: npm
+            - uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+            - run: npm ci --no-audit --no-fund
+            - run: npm run typecheck
+            - run: npm test
+            - run: npm run lint
+            - uses: android-actions/setup-android@v3
+            - run: sdkmanager "ndk;27.1.12297006"
+            - run: python3 scripts/prepare-release-apk.py --sdk "$ANDROID_HOME"
+            - run: npx expo prebuild --platform android --no-install --no-clean
+            - name: Build APK
+              working-directory: android
+              env:
+                  NODE_ENV: production
+              run: chmod +x gradlew && ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64 --console=plain
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: MingYue-Android-CI
+                  path: android/app/build/outputs/apk/release/*.apk
+                  if-no-files-found: error

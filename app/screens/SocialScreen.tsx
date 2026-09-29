@@ -1,7 +1,7 @@
 import AntDesign from '@react-native-vector-icons/ant-design/static'
 import { eq } from 'drizzle-orm'
 import { useLiveQuery } from 'drizzle-orm/expo-sqlite'
-import { useRouter } from 'expo-router'
+import { useRouter, useSegments } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -26,6 +26,7 @@ import {
     SocialPostVisibility,
     useSocialStore,
 } from '@lib/state/Social'
+import { withAlpha } from '@lib/theme/ThemeColor'
 import { Theme } from '@lib/theme/ThemeManager'
 import { getFriendlyTimeStamp } from '@lib/utils/Time'
 
@@ -37,6 +38,7 @@ const POST_VISIBILITY_OPTIONS: { value: SocialPostVisibility; label: string }[] 
 
 const SocialScreen = () => {
     const router = useRouter()
+    const inTabs = useSegments()[0] === '(tabs)'
     const styles = useStyles()
     const { color } = Theme.useTheme()
     const postSheetRef = useBottomSheetRef()
@@ -261,19 +263,24 @@ const SocialScreen = () => {
     )
 
     return (
-        <SafeAreaView edges={['bottom']} style={styles.container}>
+        <SafeAreaView edges={inTabs ? [] : ['bottom']} style={styles.container}>
             <HeaderTitle title="动态" />
             <HeaderButton
-                headerLeft={() => (
-                    <ThemedButton
-                        iconName="left"
-                        variant="tertiary"
-                        iconSize={22}
-                        onPress={() => router.back()}
-                    />
-                )}
+                headerLeft={
+                    inTabs
+                        ? undefined
+                        : () => (
+                              <ThemedButton
+                                  iconName="left"
+                                  variant="tertiary"
+                                  iconSize={22}
+                                  onPress={() => router.back()}
+                              />
+                          )
+                }
                 headerRight={() => (
                     <ContextMenu
+                        accessibilityLabel="发表动态或推荐联系人"
                         placement="bottom"
                         triggerIcon="plus"
                         buttons={[
@@ -438,11 +445,11 @@ const useStyles = () => {
     return StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: color.neutral._100,
+            backgroundColor: 'transparent',
         },
         list: {
-            paddingHorizontal: spacing.l,
-            paddingTop: spacing.l,
+            paddingHorizontal: 20,
+            paddingTop: 16,
             paddingBottom: spacing.xl3,
         },
         profile: {
@@ -451,19 +458,19 @@ const useStyles = () => {
             columnGap: spacing.l,
             padding: spacing.xl,
             backgroundColor: color.neutral._200,
-            borderRadius: borderRadius.l,
+            borderRadius: 24,
             borderWidth: 1,
-            borderColor: color.neutral._300,
+            borderColor: withAlpha(color.neutral._400, '80'),
         },
         profileAvatar: {
             width: 60,
             height: 60,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
         },
         profileName: {
             color: color.text._100,
-            fontSize: fontSize.xl2,
-            fontWeight: '700',
+            fontSize: 21,
+            fontWeight: '600',
         },
         profileIntro: {
             color: color.text._500,
@@ -474,8 +481,8 @@ const useStyles = () => {
             paddingTop: spacing.xl,
             paddingBottom: spacing.m,
             marginTop: spacing.l,
-            borderRadius: borderRadius.l,
-            backgroundColor: color.neutral._200,
+            borderRadius: 24,
+            backgroundColor: withAlpha(color.neutral._200, 'B8'),
             borderColor: color.neutral._400,
             borderWidth: 1,
         },
@@ -490,7 +497,7 @@ const useStyles = () => {
             minHeight: 128,
             padding: spacing.m,
             marginLeft: spacing.xl,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
             backgroundColor: color.neutral._300,
         },
         lifeTop: {
@@ -532,8 +539,8 @@ const useStyles = () => {
         visibilityPanel: {
             rowGap: spacing.m,
             padding: spacing.m,
-            backgroundColor: color.neutral._200,
-            borderRadius: borderRadius.m,
+            backgroundColor: withAlpha(color.neutral._200, 'B8'),
+            borderRadius: 16,
         },
         visibilityTitle: {
             color: color.text._300,
@@ -550,7 +557,7 @@ const useStyles = () => {
             paddingVertical: spacing.s,
             borderWidth: 1,
             borderColor: color.neutral._400,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
         },
         visibilityOptionSelected: {
             backgroundColor: color.primary._300,
@@ -574,7 +581,7 @@ const useStyles = () => {
             paddingHorizontal: spacing.m,
             paddingVertical: spacing.s,
             backgroundColor: color.neutral._300,
-            borderRadius: borderRadius.m,
+            borderRadius: 16,
         },
         contactOptionSelected: {
             backgroundColor: color.primary._500,
@@ -588,12 +595,12 @@ const useStyles = () => {
             fontWeight: '600',
         },
         post: {
-            backgroundColor: color.neutral._200,
+            backgroundColor: withAlpha(color.neutral._200, 'B8'),
             marginTop: spacing.l,
             padding: spacing.xl,
-            borderRadius: borderRadius.l,
+            borderRadius: 24,
             borderWidth: 1,
-            borderColor: color.neutral._300,
+            borderColor: withAlpha(color.neutral._400, '80'),
         },
         postHeader: {
             flexDirection: 'row',

@@ -39,7 +39,7 @@ const DeveloperContactListing = () => {
                 <View style={styles.topLine}>
                     <Text style={styles.name}>开发者</Text>
                     <Text style={styles.time}>
-                        {getFriendlyTimeStamp(lastMessageAt ?? Date.now())}
+                        {lastMessageAt ? getFriendlyTimeStamp(lastMessageAt) : ''}
                     </Text>
                 </View>
                 <Text style={styles.preview} numberOfLines={1}>
