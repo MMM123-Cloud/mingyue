@@ -42,7 +42,7 @@
 
 ## 2026-09-28 明月·月璃修改版 0.11.0
 
-基于 MMM123-Cloud/mingyue 0.10.29 修改。新增毛玻璃界面与月夜主题，修复流式解析、模型导入和配置、上下文预算、文件描述符生命周期、初始化和附件保存问题。完整修改说明见 docs/MoonGlass.md。修改版保持 AGPL-3.0 授权和原作者归属。
+基于 mmblll/mingyue 0.10.29 修改。新增毛玻璃界面与月夜主题，修复流式解析、模型导入和配置、上下文预算、文件描述符生命周期、初始化和附件保存问题。完整修改说明见 docs/MoonGlass.md。修改版保持 AGPL-3.0 授权和原作者归属。
 
 发布包重新编译 sqlite-vec v0.1.7-alpha.2，使其支持 16 KB ELF 对齐；保留上游源码与 MIT / Apache-2.0 双重许可，详见 vendor/sqlite-vec/。该库来源：https://github.com/asg017/sqlite-vec/releases/tag/v0.1.7-alpha.2 。
 

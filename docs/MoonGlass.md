@@ -1,6 +1,6 @@
 # 明月·月璃 0.11.0
 
-基于 https://github.com/MMM123-Cloud/mingyue 的 0.10.29 源码改造，保留 React Native、Expo 和 cui-llama.rn 原生本地推理。不是网页套壳。
+基于 https://github.com/mmblll/mingyue 的 0.10.29 源码改造，保留 React Native、Expo 和 cui-llama.rn 原生本地推理。不是网页套壳。
 
 ## 安装与离线使用
 

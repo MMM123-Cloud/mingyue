@@ -1,6 +1,6 @@
 # 明月 · 液体玻璃 0.12.0
 
-原生 Android 修改版，基于 MMM123-Cloud/mingyue 0.10.29，保留 React Native / Expo / cui-llama.rn 本地推理与 AGPL-3.0 许可。
+原生 Android 修改版，基于 mmblll/mingyue 0.10.29，保留 React Native / Expo / cui-llama.rn 本地推理与 AGPL-3.0 许可。
 
 ## 安装及断网使用
 
