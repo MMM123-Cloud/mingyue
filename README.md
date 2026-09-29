@@ -12,7 +12,7 @@
   <img src="./assets/images/mingyue-mascot.png" width="220" alt="明月">
 </p>
 
-明月是一个 Android 端的本地 AI 陪伴 App的一次尝试，结果失败了，大模型对配置要求很高，移动端几乎不可能满足，有很多bug我也懒得修了。联系人由你自己设定人设，之后由 AI 自己慢慢发展；模型跑在你手机本地，不联网也能聊。
+明月是一个 Android 端的本地 AI 陪伴 App的一次尝试，联系人由你自己设定人设，之后由 AI 自己慢慢发展；模型跑在你手机本地，不联网也能聊，也支持api。
 
 > **本仓库基于 [ChatterUI](https://github.com/Vali-98/ChatterUI) 修改而来。**
 > 上游原作者为 Vali-98，以 AGPL-3.0 授权。改动内容与日期见 [NOTICE.md](./NOTICE.md)。
