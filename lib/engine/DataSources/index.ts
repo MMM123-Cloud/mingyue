@@ -1,7 +1,9 @@
 import { AuthorNotes } from '@lib/state/AuthorNotes'
 import { Chats } from '@lib/state/Chat'
 import { Memories } from '@lib/state/Memories'
+import { rankMemoriesForContext } from '@lib/state/MemoryRecall'
 import { replaceMacros } from '@lib/state/Macros'
+import { getNetworkNow } from '@lib/utils/NetworkTime'
 
 import { Tokenizer } from '../Tokenizer'
 import createLorebookDataSource from './lorebookSource'
@@ -57,8 +59,10 @@ const createContactMemoryDataSource = async (): Promise<DataSource | undefined> 
     const chatData = await Chats.db.query.chatShallow(chatId)
     if (!chatData) return
 
-    const memories = await Memories.db.query.forContext(chatData.character_id)
-    if (memories.length === 0) return
+    // 先取一个较宽的候选池，再在 retrieve 里按当前对话重排。只看重要度会让注入
+    // 的记忆和正在聊的话题无关。
+    const candidateMemories = await Memories.db.query.forContext(chatData.character_id)
+    if (candidateMemories.length === 0) return
 
     return {
         name: CONTACT_MEMORY_NAME,
@@ -81,6 +85,12 @@ const createContactMemoryDataSource = async (): Promise<DataSource | undefined> 
             const header = `[${characterName}的长期印象 - 不是数据库，也不是逐字档案。只在与当前话题有关时自然想起；普通小事可能淡忘、模糊或记错，重要且反复出现的经历更清楚。不要逐条复述，也不要假装什么都记得。]\n`
             const tokenizer = Tokenizer.getTokenizer()
             const recentContext = messages.map((message) => message.content).join('\n')
+            const queryText = messages
+                .slice(-6)
+                .map((message) => message.content)
+                .join('\n')
+            const now = getNetworkNow()
+            const memories = rankMemoriesForContext(candidateMemories, { queryText, now })
             const usedMemoryIds: number[] = []
             const lines: string[] = []
             let usedTokens = await tokenizer(header)

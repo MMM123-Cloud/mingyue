@@ -127,23 +127,22 @@ export namespace Memories {
                     .limit(500)
             }
 
-            export const forContext = async (characterId: number, limit = 60) => {
-                const now = getNetworkNow()
-                const rows = await database
+            /**
+             * 候选池。只负责「取一个足够宽的池子」，最终注入哪些由
+             * rankMemoriesForContext 按当前对话的相关度决定。
+             *
+             * 这里以前还会按 id 哈希做一轮随机丢弃，用来避免每轮都注入同样的记忆；
+             * 但它在相关性排序之前就丢，低重要度的记忆有近一半概率被丢掉 - 而
+             * 「用户讨厌香菜」这类恰好当事的记忆重要度就不高。现在由相关性排序和
+             * 召回降温来避免重复，不再需要这里的随机丢弃。
+             */
+            export const forContext = (characterId: number, limit = 120) => {
+                return database
                     .select()
                     .from(contactMemories)
                     .where(eq(contactMemories.character_id, characterId))
                     .orderBy(desc(contactMemories.importance), desc(contactMemories.created_at))
                     .limit(limit)
-
-                return rows.filter((memory) => {
-                    const ageDays = Math.max(0, (now - memory.created_at) / 86400000)
-                    const hash = (memory.id * 2654435761 + characterId) >>> 0
-                    const roll = hash % 100
-                    if (memory.importance >= 80) return roll >= 4
-                    if (memory.importance >= 55) return ageDays < 30 || roll >= 22
-                    return ageDays < 10 || roll >= 48
-                })
             }
 
             export const findForEntry = async (entryId: number) => {
